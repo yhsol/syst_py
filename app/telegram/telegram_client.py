@@ -1,9 +1,13 @@
+from typing import Literal
+
 import os
 import httpx
 
 
-async def send_telegram_message(message: str, type: str):
-    is_long_term = type == "longTerm"
+async def send_telegram_message(
+    message: str, term_type: Literal["long-term", "short-term"]
+):
+    is_long_term = term_type == "long-term"
     telegram_bot_token = (
         os.getenv("TELEGRAM_LONG_TERM_BOT_TOKEN")
         if is_long_term
@@ -20,8 +24,8 @@ async def send_telegram_message(message: str, type: str):
                 json={"chat_id": chat_id, "text": message, "parse_mode": "Markdown"},
             )
             response.raise_for_status()  # 이 부분은 요청이 실패했을 때 예외를 발생시킵니다.
-    except Exception as error:
-        print(f"Telegram send error: {error}")
+    except httpx.RequestError as error:
+        print(f"❌ error: Telegram send error: {error}")
 
 
 def format_trading_view_link(coin):

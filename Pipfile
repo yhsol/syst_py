@@ -17,3 +17,6 @@ python_version = "3.11"
 
 [scripts]
 start = "uvicorn app.main:app --reload"
+lint = "pylint ."
+format = "black app"
+pipenv_shell = "pipenv shell"

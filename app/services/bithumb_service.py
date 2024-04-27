@@ -1,17 +1,17 @@
+import os
+import time
+
+
 import httpx
 from dotenv import load_dotenv
-import os
-
-# Api-Sign 을 위한 작업 필요
-from hashlib import sha512
-import hmac
-import time
 
 load_dotenv()
 
 BASE_URL = "https://api.bithumb.com"
 API_KEY = os.getenv("API_KEY")
 API_SECRET = os.getenv("API_SECRET")
+
+# Api-Sign 을 위한 작업 필요
 
 
 class BithumbService:
