@@ -2,6 +2,7 @@ import httpx
 from dotenv import load_dotenv
 import os
 
+# Api-Sign 을 위한 작업 필요
 from hashlib import sha512
 import hmac
 import time
@@ -46,7 +47,7 @@ class BithumbService:
                 }
 
         """
-        url = f"https://api.bithumb.com/public/ticker/ALL_{payment_currency}"
+        url = f"{BASE_URL}/public/ticker/ALL_{payment_currency}"
         headers = {"accept": "application/json"}
         async with httpx.AsyncClient() as client:
             response = await client.get(url, headers=headers)
@@ -83,9 +84,7 @@ class BithumbService:
                 }
 
         """
-        url = (
-            f"https://api.bithumb.com/public/ticker/{order_currency}_{payment_currency}"
-        )
+        url = f"{BASE_URL}/public/ticker/{order_currency}_{payment_currency}"
         headers = {"accept": "application/json"}
         async with httpx.AsyncClient() as client:
             response = await client.get(url, headers=headers)
@@ -131,7 +130,7 @@ class BithumbService:
                 }
 
         """
-        url = f"https://api.bithumb.com/public/orderbook/ALL_{payment_currency}"
+        url = f"{BASE_URL}/public/orderbook/ALL_{payment_currency}"
         # params = {"count": count}
         headers = {"accept": "application/json"}
         async with httpx.AsyncClient() as client:
@@ -184,7 +183,7 @@ class BithumbService:
                 }
 
         """
-        url = f"https://api.bithumb.com/public/orderbook/{order_currency}_{payment_currency}"
+        url = f"{BASE_URL}/public/orderbook/{order_currency}_{payment_currency}"
         params = {"count": count}
         headers = {"accept": "application/json"}
         async with httpx.AsyncClient() as client:
@@ -219,7 +218,9 @@ class BithumbService:
                 }
 
         """
-        url = f"https://api.bithumb.com/public/transaction_history/{order_currency}_{payment_currency}"
+        url = (
+            f"{BASE_URL}/public/transaction_history/{order_currency}_{payment_currency}"
+        )
         params = {"count": count}
         headers = {"accept": "application/json"}
         async with httpx.AsyncClient() as client:
@@ -241,7 +242,7 @@ class BithumbService:
                 }
 
         """
-        url = "https://api.bithumb.com/public/network-info"
+        url = f"{BASE_URL}/public/network-info"
         headers = {"accept": "application/json"}
         async with httpx.AsyncClient() as client:
             response = await client.get(url, headers=headers)
@@ -267,7 +268,7 @@ class BithumbService:
                 }
 
         """
-        url = f"https://api.bithumb.com/public/assetsstatus/multichain/{currency}"
+        url = f"{BASE_URL}/public/assetsstatus/multichain/{currency}"
         headers = {"accept": "application/json"}
         async with httpx.AsyncClient() as client:
             response = await client.get(url, headers=headers)
@@ -292,7 +293,7 @@ class BithumbService:
                 }
 
         """
-        url = f"https://api.bithumb.com/public/withdraw/minimum/{currency}"
+        url = f"{BASE_URL}/public/withdraw/minimum/{currency}"
         headers = {"accept": "application/json"}
         async with httpx.AsyncClient() as client:
             response = await client.get(url, headers=headers)
@@ -328,7 +329,7 @@ class BithumbService:
                     ]
                 }
         """
-        url = f"https://api.bithumb.com/public/candlestick/{order_currency}_{payment_currency}/{chart_intervals}"
+        url = f"{BASE_URL}/public/candlestick/{order_currency}_{payment_currency}/{chart_intervals}"
         headers = {"accept": "application/json"}
         async with httpx.AsyncClient() as client:
             response = await client.get(url, headers=headers)
@@ -948,7 +949,7 @@ class BithumbPrivateService:
                 }
 
         """
-        url = f"https://api.bithumb.com/trade/cancel"
+        url = f"{BASE_URL}/trade/cancel"
         headers = {
             "accept": "application/json",
             "content-type": "application/x-www-form-urlencoded",
