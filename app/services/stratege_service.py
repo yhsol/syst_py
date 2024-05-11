@@ -1,9 +1,11 @@
 import pandas as pd
 import pytz
 
+from app.services.bithumb_service import BithumbService
+
 
 class StrategyService:
-    def __init__(self, strategy, bithumb_service):
+    def __init__(self, strategy: str, bithumb_service: BithumbService):
         self.strategy = strategy
         self.bithumb_service = bithumb_service
 
