@@ -11,6 +11,8 @@ autopep8 = "*"
 black = "*"
 pandas = "*"
 numpy = "*"
+types-pytz = "*"
+pandas-stubs = "*"
 
 [dev-packages]
 
