@@ -9,6 +9,8 @@ httpx = "*"
 python-dotenv = "*"
 autopep8 = "*"
 black = "*"
+pandas = "*"
+numpy = "*"
 
 [dev-packages]
 
