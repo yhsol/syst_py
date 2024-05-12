@@ -13,6 +13,7 @@ pandas = "*"
 numpy = "*"
 types-pytz = "*"
 pandas-stubs = "*"
+websockets = "*"
 
 [dev-packages]
 

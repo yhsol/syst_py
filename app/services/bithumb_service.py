@@ -1,6 +1,8 @@
+import json
 import os
 
 import httpx
+import websockets
 from dotenv import load_dotenv
 
 from app.lib.bithumb_auth_header.xcoin_api_client import XCoinAPI
@@ -140,7 +142,7 @@ class BithumbService:
     async def get_orderbook(
         self,
         order_currency: str,
-        payment_currency: str,
+        payment_currency: str = "KRW",
         count: int = 30,
     ):
         """
@@ -329,6 +331,29 @@ class BithumbService:
         async with httpx.AsyncClient() as client:
             response = await client.get(url, headers=headers)
             return response.json()
+
+    async def bithumb_ws_client(self, subscribe_type, symbols, tick_types=None):
+        uri = "wss://pubwss.bithumb.com/pub/ws"
+
+        # 동적 구독 요청 메시지 생성
+        subscribe_message = {"type": subscribe_type, "symbols": symbols}
+
+        # tick_types가 제공되는 경우 메시지에 추가
+        if tick_types:
+            subscribe_message["tickTypes"] = tick_types
+
+        async with websockets.connect(uri) as websocket:
+            # 구독 요청 메시지 전송
+            await websocket.send(json.dumps(subscribe_message))
+            print(
+                f"Subscribed to {subscribe_type} for {symbols} with tick types {tick_types}"
+            )
+
+            # 서버로부터 메시지 수신 및 출력
+            while True:
+                message = await websocket.recv()
+                message_data = json.loads(message)
+                print(message_data)
 
 
 class BithumbPrivateService:
@@ -836,7 +861,7 @@ class BithumbPrivateService:
         self,
         units: float,
         order_currency: str,
-        payment_currency: str,
+        payment_currency: str = "KRW",
     ):
         """
         Market buy (시장가 매수하기)
