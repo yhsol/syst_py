@@ -41,9 +41,13 @@ class StrategyService:
 
         return df
 
-    def determine_signal_status(self, filtered_signals, signal_columns):
+    def determine_signal_status(self, filtered_signals, signal_columns) -> dict:
         if filtered_signals.empty:
-            return "No active signal.", "No active signal."
+            return {
+                "latest": "No active signal.",
+                "last_true": "No active signal.",
+                "last_true_timestamp": None,
+            }
 
         # 가장 최근 시그널 상태
         latest_signal_status = "No active signal."
@@ -65,9 +69,17 @@ class StrategyService:
                 col for col in signal_columns if last_true_signals[col]
             )
 
-        return latest_signal_status, last_true_signal_status
+        last_true_signal_timestamp = (
+            last_true_signals["timestamp"] if not last_true_signals.empty else None
+        )
 
-    async def analyze_currency(
+        return {
+            "latest": latest_signal_status,
+            "last_true": last_true_signal_status,
+            "last_true_timestamp": last_true_signal_timestamp,
+        }
+
+    async def analyze_currency_by_turtle(
         self, order_currency, payment_currency="KRW", chart_intervals="1h"
     ):
         data = await self.bithumb_service.get_candlestick_data(
@@ -84,14 +96,13 @@ class StrategyService:
         filtered_signals = signals[["timestamp"] + signal_columns]
         filtered_signals = filtered_signals.sort_values(by="timestamp", ascending=False)
 
-        latest_signal_status, last_true_signal_status = self.determine_signal_status(
-            filtered_signals, signal_columns
-        )
+        signal_status = self.determine_signal_status(filtered_signals, signal_columns)
 
         return {
             "ticker": order_currency,
             "status": "success",
-            "latest_signal_type": latest_signal_status,
-            "last_true_signal_type": last_true_signal_status,
+            "type_latest_signal": signal_status["latest"],
+            "type_last_true_signal": signal_status["last_true"],
+            "type_last_true_timestamp": signal_status["last_true_timestamp"],
             "data": filtered_signals.head(20).to_dict(orient="records"),
         }
