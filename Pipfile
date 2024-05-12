@@ -13,6 +13,7 @@ pandas = "*"
 numpy = "*"
 types-pytz = "*"
 pandas-stubs = "*"
+requests = "*"
 
 [dev-packages]
 

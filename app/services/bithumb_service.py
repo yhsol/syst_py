@@ -5,13 +5,13 @@ import time
 import httpx
 from dotenv import load_dotenv
 
+from app.lib.bithumb_auth_header.xcoin_api_client1 import XCoinAPI
+
 load_dotenv()
 
 BASE_URL = "https://api.bithumb.com"
 API_KEY = os.getenv("API_KEY")
 API_SECRET = os.getenv("API_SECRET")
-
-# Api-Sign 을 위한 작업 필요
 
 
 class BithumbService:
@@ -340,6 +340,7 @@ class BithumbPrivateService:
     def __init__(self):
         self.api_key = os.getenv("BITHUMB_API_KEY")
         self.api_secret = os.getenv("BITHUMB_API_SECRET")
+        self.auth_api = XCoinAPI(self.api_key, self.api_secret)
 
     # 회원 정보 조회
     async def get_account_info(
@@ -372,7 +373,7 @@ class BithumbPrivateService:
             "content-type": "application/x-www-form-urlencoded",
             "Api-Key": os.getenv("API_KEY"),
             "Api-Nonce": str(int(time.time() * 1000)),
-            "Api-Sign": create_signature(
+            "Api-Sign": self.auth_api.xcoin_api_call(
                 "/info/account",
                 {
                     "order_currency": order_currency,
@@ -414,7 +415,7 @@ class BithumbPrivateService:
             "content-type": "application/x-www-form-urlencoded",
             "Api-Key": os.getenv("API_KEY"),
             "Api-Nonce": str(int(time.time() * 1000)),
-            "Api-Sign": create_signature(
+            "Api-Sign": self.auth_api.xcoin_api_call(
                 "/info/balance", {"currency": currency}
             ),  # You will need to define the `create_signature` function based on your API secret and encoding requirements.
         }
@@ -451,7 +452,7 @@ class BithumbPrivateService:
             "content-type": "application/x-www-form-urlencoded",
             "Api-Key": os.getenv("API_KEY"),
             "Api-Nonce": str(int(time.time() * 1000)),
-            "Api-Sign": create_signature(
+            "Api-Sign": self.auth_api.xcoin_api_call(
                 "/info/wallet_address", {"currency": currency, "net_type": net_type}
             ),  # You will need to define the `create_signature` function based on your API secret and encoding requirements.
         }
@@ -498,7 +499,7 @@ class BithumbPrivateService:
             "content-type": "application/x-www-form-urlencoded",
             "Api-Key": os.getenv("API_KEY"),
             "Api-Nonce": str(int(time.time() * 1000)),
-            "Api-Sign": create_signature(
+            "Api-Sign": self.auth_api.xcoin_api_call(
                 "/info/ticker",
                 {
                     "order_currency": order_currency,
@@ -555,7 +556,7 @@ class BithumbPrivateService:
             "content-type": "application/x-www-form-urlencoded",
             "Api-Key": os.getenv("API_KEY"),
             "Api-Nonce": str(int(time.time() * 1000)),
-            "Api-Sign": create_signature(
+            "Api-Sign": self.auth_api.xcoin_api_call(
                 "/info/orders",
                 {
                     "order_currency": order_currency,
@@ -621,7 +622,7 @@ class BithumbPrivateService:
             "content-type": "application/x-www-form-urlencoded",
             "Api-Key": os.getenv("API_KEY"),
             "Api-Nonce": str(int(time.time() * 1000)),
-            "Api-Sign": create_signature(
+            "Api-Sign": self.auth_api.xcoin_api_call(
                 "/info/order_detail",
                 {
                     "order_id": order_id,
@@ -690,7 +691,7 @@ class BithumbPrivateService:
             "content-type": "application/x-www-form-urlencoded",
             "Api-Key": os.getenv("API_KEY"),
             "Api-Nonce": str(int(time.time() * 1000)),
-            "Api-Sign": create_signature(
+            "Api-Sign": self.auth_api.xcoin_api_call(
                 "/info/user_transactions",
                 {
                     "offset": offset,
@@ -746,7 +747,7 @@ class BithumbPrivateService:
             "content-type": "application/x-www-form-urlencoded",
             "Api-Key": os.getenv("API_KEY"),
             "Api-Nonce": str(int(time.time() * 1000)),
-            "Api-Sign": create_signature(
+            "Api-Sign": self.auth_api.xcoin_api_call(
                 "/trade/place",
                 {
                     "order_currency": order_currency,
@@ -798,7 +799,7 @@ class BithumbPrivateService:
             "content-type": "application/x-www-form-urlencoded",
             "Api-Key": os.getenv("API_KEY"),
             "Api-Nonce": str(int(time.time() * 1000)),
-            "Api-Sign": create_signature(
+            "Api-Sign": self.auth_api.xcoin_api_call(
                 "/trade/market_buy",
                 {
                     "units": units,
@@ -846,7 +847,7 @@ class BithumbPrivateService:
             "content-type": "application/x-www-form-urlencoded",
             "Api-Key": os.getenv("API_KEY"),
             "Api-Nonce": str(int(time.time() * 1000)),
-            "Api-Sign": create_signature(
+            "Api-Sign": self.auth_api.xcoin_api_call(
                 "/trade/market_sell",
                 {
                     "units": units,
@@ -900,7 +901,7 @@ class BithumbPrivateService:
             "content-type": "application/x-www-form-urlencoded",
             "Api-Key": os.getenv("API_KEY"),
             "Api-Nonce": str(int(time.time() * 1000)),
-            "Api-Sign": create_signature(
+            "Api-Sign": self.auth_api.xcoin_api_call(
                 "/trade/stop_limit",
                 {
                     "order_currency": order_currency,
@@ -955,7 +956,7 @@ class BithumbPrivateService:
             "content-type": "application/x-www-form-urlencoded",
             "Api-Key": os.getenv("API_KEY"),
             "Api-Nonce": str(int(time.time() * 1000)),
-            "Api-Sign": create_signature(
+            "Api-Sign": self.auth_api.xcoin_api_call(
                 "/trade/cancel",
                 {
                     "type": order_type,
