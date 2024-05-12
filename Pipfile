@@ -13,7 +13,6 @@ pandas = "*"
 numpy = "*"
 types-pytz = "*"
 pandas-stubs = "*"
-requests = "*"
 
 [dev-packages]
 
@@ -22,6 +21,6 @@ python_version = "3.11"
 
 [scripts]
 start = "uvicorn app.main:app --reload"
+running_pipenv_envirenment = "pipenv shell"
 lint = "pylint ."
 format = "black app"
-pipenv_shell = "pipenv shell"

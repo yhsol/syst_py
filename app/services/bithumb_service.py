@@ -1,23 +1,18 @@
 import os
-import time
-
 
 import httpx
 from dotenv import load_dotenv
 
-from app.lib.bithumb_auth_header.xcoin_api_client1 import XCoinAPI
+from app.lib.bithumb_auth_header.xcoin_api_client import XCoinAPI
 
 load_dotenv()
 
 BASE_URL = "https://api.bithumb.com"
-API_KEY = os.getenv("API_KEY")
-API_SECRET = os.getenv("API_SECRET")
 
 
 class BithumbService:
     def __init__(self):
-        self.api_key = os.getenv("BITHUMB_API_KEY")
-        self.api_secret = os.getenv("BITHUMB_API_SECRET")
+        print("BithumbService init")
 
     # 현재가 정보 조회 (ALL)
     async def get_current_price(self, payment_currency: str = "KRW"):
@@ -338,13 +333,14 @@ class BithumbService:
 
 class BithumbPrivateService:
     def __init__(self):
-        self.api_key = os.getenv("BITHUMB_API_KEY")
-        self.api_secret = os.getenv("BITHUMB_API_SECRET")
+        print("BithumbPrivateService init")
+        self.api_key = os.getenv("BITHUMB_CON_KEY")
+        self.api_secret = os.getenv("BITHUMB_SEC_KEY")
         self.auth_api = XCoinAPI(self.api_key, self.api_secret)
 
     # 회원 정보 조회
     async def get_account_info(
-        self, order_currency: str, payment_currency: str = "KRW"
+        self, order_currency: str = "BTC", payment_currency: str = "KRW"
     ):
         """
         회원 정보 조회 (Account Information)
@@ -367,24 +363,31 @@ class BithumbPrivateService:
                 }
 
         """
-        url = f"{BASE_URL}/info/account"
-        headers = {
-            "accept": "application/json",
-            "content-type": "application/x-www-form-urlencoded",
-            "Api-Key": os.getenv("API_KEY"),
-            "Api-Nonce": str(int(time.time() * 1000)),
-            "Api-Sign": self.auth_api.xcoin_api_call(
-                "/info/account",
-                {
-                    "order_currency": order_currency,
-                    "payment_currency": payment_currency,
-                },
-            ),  # You will need to define the `create_signature` function based on your API secret and encoding requirements.
+        # url = f"{BASE_URL}/info/account"
+        # headers = {
+        #     "accept": "application/json",
+        #     "content-type": "application/x-www-form-urlencoded",
+        #     "Api-Key": self.api_key,
+        #     "Api-Nonce": str(int(time.time() * 1000)),
+        #     "Api-Sign": self.auth_api.xcoin_api_call(
+        #         "/info/account",
+        #         {
+        #             "order_currency": order_currency,
+        #             "payment_currency": payment_currency,
+        #         },
+        #     ),  # You will need to define the `create_signature` function based on your API secret and encoding requirements.
+        # }
+        # async with httpx.AsyncClient() as client:
+        #     response = await client.post(url, headers=headers, data=data)
+        #     return response.json()
+        # result = await api.xcoin_api_call(rgParams["endpoint"], rgParams)
+        params = {
+            "endpoint": "/info/account",
+            "order_currency": order_currency,
+            "payment_currency": payment_currency,
         }
-        data = {"order_currency": order_currency, "payment_currency": payment_currency}
-        async with httpx.AsyncClient() as client:
-            response = await client.post(url, headers=headers, data=data)
-            return response.json()
+        result = await self.auth_api.xcoin_api_call(params["endpoint"], params)
+        return result
 
     # 보유자산 조회
     async def get_balance(self, currency: str = "BTC"):
@@ -409,20 +412,26 @@ class BithumbPrivateService:
                 }
 
         """
-        url = f"{BASE_URL}/info/balance"
-        headers = {
-            "accept": "application/json",
-            "content-type": "application/x-www-form-urlencoded",
-            "Api-Key": os.getenv("API_KEY"),
-            "Api-Nonce": str(int(time.time() * 1000)),
-            "Api-Sign": self.auth_api.xcoin_api_call(
-                "/info/balance", {"currency": currency}
-            ),  # You will need to define the `create_signature` function based on your API secret and encoding requirements.
+        # url = f"{BASE_URL}/info/balance"
+        # headers = {
+        #     "accept": "application/json",
+        #     "content-type": "application/x-www-form-urlencoded",
+        #     "Api-Key": self.api_key,
+        #     "Api-Nonce": str(int(time.time() * 1000)),
+        #     "Api-Sign": self.auth_api.xcoin_api_call(
+        #         "/info/balance", {"currency": currency}
+        #     ),  # You will need to define the `create_signature` function based on your API secret and encoding requirements.
+        # }
+        # data = {"currency": currency}
+        # async with httpx.AsyncClient() as client:
+        #     response = await client.post(url, data=data, headers=headers)
+        #     return response.json()
+        params = {
+            "endpoint": "/info/balance",
+            "currency": currency,
         }
-        data = {"currency": currency}
-        async with httpx.AsyncClient() as client:
-            response = await client.post(url, data=data, headers=headers)
-            return response.json()
+        result = await self.auth_api.xcoin_api_call(params["endpoint"], params)
+        return result
 
     # 입금 주소 조회
     async def get_wallet_address(
@@ -446,20 +455,27 @@ class BithumbPrivateService:
                 }
 
         """
-        url = f"{BASE_URL}/info/wallet_address"
-        headers = {
-            "accept": "application/json",
-            "content-type": "application/x-www-form-urlencoded",
-            "Api-Key": os.getenv("API_KEY"),
-            "Api-Nonce": str(int(time.time() * 1000)),
-            "Api-Sign": self.auth_api.xcoin_api_call(
-                "/info/wallet_address", {"currency": currency, "net_type": net_type}
-            ),  # You will need to define the `create_signature` function based on your API secret and encoding requirements.
+        # url = f"{BASE_URL}/info/wallet_address"
+        # headers = {
+        #     "accept": "application/json",
+        #     "content-type": "application/x-www-form-urlencoded",
+        #     "Api-Key": self.api_key,
+        #     "Api-Nonce": str(int(time.time() * 1000)),
+        #     "Api-Sign": self.auth_api.xcoin_api_call(
+        #         "/info/wallet_address", {"currency": currency, "net_type": net_type}
+        #     ),  # You will need to define the `create_signature` function based on your API secret and encoding requirements.
+        # }
+        # data = {"currency": currency, "net_type": net_type}
+        # async with httpx.AsyncClient() as client:
+        #     response = await client.post(url, data=data, headers=headers)
+        #     return response.json()
+        params = {
+            "endpoint": "/info/wallet_address",
+            "currency": currency,
+            "net_type": net_type,
         }
-        data = {"currency": currency, "net_type": net_type}
-        async with httpx.AsyncClient() as client:
-            response = await client.post(url, data=data, headers=headers)
-            return response.json()
+        result = await self.auth_api.xcoin_api_call(params["endpoint"], params)
+        return result
 
     # 최근 거래정보 조회
     async def get_recent_transaction_info(
@@ -493,24 +509,31 @@ class BithumbPrivateService:
                 }
 
         """
-        url = f"{BASE_URL}/info/ticker"
-        headers = {
-            "accept": "application/json",
-            "content-type": "application/x-www-form-urlencoded",
-            "Api-Key": os.getenv("API_KEY"),
-            "Api-Nonce": str(int(time.time() * 1000)),
-            "Api-Sign": self.auth_api.xcoin_api_call(
-                "/info/ticker",
-                {
-                    "order_currency": order_currency,
-                    "payment_currency": payment_currency,
-                },
-            ),  # You will need to define the `create_signature` function based on your API secret and encoding requirements.
+        # url = f"{BASE_URL}/info/ticker"
+        # headers = {
+        #     "accept": "application/json",
+        #     "content-type": "application/x-www-form-urlencoded",
+        #     "Api-Key": self.api_key,
+        #     "Api-Nonce": str(int(time.time() * 1000)),
+        #     "Api-Sign": self.auth_api.xcoin_api_call(
+        #         "/info/ticker",
+        #         {
+        #             "order_currency": order_currency,
+        #             "payment_currency": payment_currency,
+        #         },
+        #     ),  # You will need to define the `create_signature` function based on your API secret and encoding requirements.
+        # }
+        # data = {"order_currency": order_currency, "payment_currency": payment_currency}
+        # async with httpx.AsyncClient() as client:
+        #     response = await client.post(url, data=data, headers=headers)
+        #     return response.json()
+        params = {
+            "endpoint": "/info/ticker",
+            "order_currency": order_currency,
+            "payment_currency": payment_currency,
         }
-        data = {"order_currency": order_currency, "payment_currency": payment_currency}
-        async with httpx.AsyncClient() as client:
-            response = await client.post(url, data=data, headers=headers)
-            return response.json()
+        result = await self.auth_api.xcoin_api_call(params["endpoint"], params)
+        return result
 
     # 거래 주문내역 조회
     async def get_order_history(
@@ -550,21 +573,33 @@ class BithumbPrivateService:
                 }
 
         """
-        url = f"{BASE_URL}/info/orders"
-        headers = {
-            "accept": "application/json",
-            "content-type": "application/x-www-form-urlencoded",
-            "Api-Key": os.getenv("API_KEY"),
-            "Api-Nonce": str(int(time.time() * 1000)),
-            "Api-Sign": self.auth_api.xcoin_api_call(
-                "/info/orders",
-                {
-                    "order_currency": order_currency,
-                    "payment_currency": payment_currency,
-                },
-            ),  # You will need to define the `create_signature` function based on your API secret and encoding requirements.
-        }
-        data = {
+        # url = f"{BASE_URL}/info/orders"
+        # headers = {
+        #     "accept": "application/json",
+        #     "content-type": "application/x-www-form-urlencoded",
+        #     "Api-Key": self.api_key,
+        #     "Api-Nonce": str(int(time.time() * 1000)),
+        #     "Api-Sign": self.auth_api.xcoin_api_call(
+        #         "/info/orders",
+        #         {
+        #             "order_currency": order_currency,
+        #             "payment_currency": payment_currency,
+        #         },
+        #     ),  # You will need to define the `create_signature` function based on your API secret and encoding requirements.
+        # }
+        # data = {
+        #     "order_currency": order_currency,
+        #     "payment_currency": payment_currency,
+        #     "order_id": order_id,
+        #     "type": order_type,
+        #     "count": count,
+        #     "after": after,
+        # }
+        # async with httpx.AsyncClient() as client:
+        #     response = await client.post(url, data=data, headers=headers)
+        #     return response.json()
+        params = {
+            "endpoint": "/info/orders",
             "order_currency": order_currency,
             "payment_currency": payment_currency,
             "order_id": order_id,
@@ -572,9 +607,8 @@ class BithumbPrivateService:
             "count": count,
             "after": after,
         }
-        async with httpx.AsyncClient() as client:
-            response = await client.post(url, data=data, headers=headers)
-            return response.json()
+        result = await self.auth_api.xcoin_api_call(params["endpoint"], params)
+        return result
 
     # 거래 주문내역 상세 조회
     async def get_order_detail(
@@ -616,38 +650,46 @@ class BithumbPrivateService:
                 }
 
         """
-        url = f"{BASE_URL}/info/order_detail"
-        headers = {
-            "accept": "application/json",
-            "content-type": "application/x-www-form-urlencoded",
-            "Api-Key": os.getenv("API_KEY"),
-            "Api-Nonce": str(int(time.time() * 1000)),
-            "Api-Sign": self.auth_api.xcoin_api_call(
-                "/info/order_detail",
-                {
-                    "order_id": order_id,
-                    "order_currency": order_currency,
-                    "payment_currency": payment_currency,
-                },
-            ),  # You will need to define the `create_signature` function based on your API secret and encoding requirements.
-        }
-        data = {
+        # url = f"{BASE_URL}/info/order_detail"
+        # headers = {
+        #     "accept": "application/json",
+        #     "content-type": "application/x-www-form-urlencoded",
+        #     "Api-Key": self.api_key,
+        #     "Api-Nonce": str(int(time.time() * 1000)),
+        #     "Api-Sign": self.auth_api.xcoin_api_call(
+        #         "/info/order_detail",
+        #         {
+        #             "order_id": order_id,
+        #             "order_currency": order_currency,
+        #             "payment_currency": payment_currency,
+        #         },
+        #     ),  # You will need to define the `create_signature` function based on your API secret and encoding requirements.
+        # }
+        # data = {
+        #     "order_id": order_id,
+        #     "order_currency": order_currency,
+        #     "payment_currency": payment_currency,
+        # }
+        # async with httpx.AsyncClient() as client:
+        #     response = await client.post(url, data=data, headers=headers)
+        #     return response.json()
+        params = {
+            "endpoint": "/info/order_detail",
             "order_id": order_id,
             "order_currency": order_currency,
             "payment_currency": payment_currency,
         }
-        async with httpx.AsyncClient() as client:
-            response = await client.post(url, data=data, headers=headers)
-            return response.json()
+        result = await self.auth_api.xcoin_api_call(params["endpoint"], params)
+        return result
 
     # 거래 체결내역 조회
     async def get_user_transactions(
         self,
+        order_currency: str = "BTC",
+        payment_currency: str = "KRW",
         offset: int = 0,
         count: int = 20,
         search_gb: int = 0,
-        order_currency: str = "BTC",
-        payment_currency: str = "KRW",
     ):
         """
         거래 체결내역 조회 (Inquiry of Completed Transaction History)
@@ -685,33 +727,43 @@ class BithumbPrivateService:
                 }
 
         """
-        url = f"{BASE_URL}/info/user_transactions"
-        headers = {
-            "accept": "application/json",
-            "content-type": "application/x-www-form-urlencoded",
-            "Api-Key": os.getenv("API_KEY"),
-            "Api-Nonce": str(int(time.time() * 1000)),
-            "Api-Sign": self.auth_api.xcoin_api_call(
-                "/info/user_transactions",
-                {
-                    "offset": offset,
-                    "count": count,
-                    "searchGb": search_gb,
-                    "order_currency": order_currency,
-                    "payment_currency": payment_currency,
-                },
-            ),  # You will need to define the `create_signature` function based on your API secret and encoding requirements.
-        }
-        data = {
+        # url = f"{BASE_URL}/info/user_transactions"
+        # headers = {
+        #     "accept": "application/json",
+        #     "content-type": "application/x-www-form-urlencoded",
+        #     "Api-Key": self.api_key,
+        #     "Api-Nonce": str(int(time.time() * 1000)),
+        #     "Api-Sign": self.auth_api.xcoin_api_call(
+        #         "/info/user_transactions",
+        #         {
+        #             "offset": offset,
+        #             "count": count,
+        #             "searchGb": search_gb,
+        #             "order_currency": order_currency,
+        #             "payment_currency": payment_currency,
+        #         },
+        #     ),  # You will need to define the `create_signature` function based on your API secret and encoding requirements.
+        # }
+        # data = {
+        #     "offset": offset,
+        #     "count": count,
+        #     "searchGb": search_gb,
+        #     "order_currency": order_currency,
+        #     "payment_currency": payment_currency,
+        # }
+        # async with httpx.AsyncClient() as client:
+        #     response = await client.post(url, data=data, headers=headers)
+        #     return response.json()
+        params = {
+            "endpoint": "/info/user_transactions",
             "offset": offset,
             "count": count,
             "searchGb": search_gb,
             "order_currency": order_currency,
             "payment_currency": payment_currency,
         }
-        async with httpx.AsyncClient() as client:
-            response = await client.post(url, data=data, headers=headers)
-            return response.json()
+        result = await self.auth_api.xcoin_api_call(params["endpoint"], params)
+        return result
 
     # 지정가 주문하기
     async def place_limit_order(
@@ -741,33 +793,43 @@ class BithumbPrivateService:
                 }
 
         """
-        url = f"{BASE_URL}/trade/place"
-        headers = {
-            "accept": "application/json",
-            "content-type": "application/x-www-form-urlencoded",
-            "Api-Key": os.getenv("API_KEY"),
-            "Api-Nonce": str(int(time.time() * 1000)),
-            "Api-Sign": self.auth_api.xcoin_api_call(
-                "/trade/place",
-                {
-                    "order_currency": order_currency,
-                    "payment_currency": payment_currency,
-                    "units": units,
-                    "price": price,
-                    "type": order_type,
-                },
-            ),  # You will need to define the `create_signature` function based on your API secret and encoding requirements.
-        }
-        data = {
+        # url = f"{BASE_URL}/trade/place"
+        # headers = {
+        #     "accept": "application/json",
+        #     "content-type": "application/x-www-form-urlencoded",
+        #     "Api-Key": self.api_key,
+        #     "Api-Nonce": str(int(time.time() * 1000)),
+        #     "Api-Sign": self.auth_api.xcoin_api_call(
+        #         "/trade/place",
+        #         {
+        #             "order_currency": order_currency,
+        #             "payment_currency": payment_currency,
+        #             "units": units,
+        #             "price": price,
+        #             "type": order_type,
+        #         },
+        #     ),  # You will need to define the `create_signature` function based on your API secret and encoding requirements.
+        # }
+        # data = {
+        #     "order_currency": order_currency,
+        #     "payment_currency": payment_currency,
+        #     "units": units,
+        #     "price": price,
+        #     "type": order_type,
+        # }
+        # async with httpx.AsyncClient() as client:
+        #     response = await client.post(url, data=data, headers=headers)
+        #     return response.json()
+        params = {
+            "endpoint": "/trade/place",
             "order_currency": order_currency,
             "payment_currency": payment_currency,
             "units": units,
             "price": price,
             "type": order_type,
         }
-        async with httpx.AsyncClient() as client:
-            response = await client.post(url, data=data, headers=headers)
-            return response.json()
+        result = await self.auth_api.xcoin_api_call(params["endpoint"], params)
+        return result
 
     # 시장가 매수하기
     async def market_buy(
@@ -793,29 +855,37 @@ class BithumbPrivateService:
                 }
 
         """
-        url = f"{BASE_URL}/trade/market_buy"
-        headers = {
-            "accept": "application/json",
-            "content-type": "application/x-www-form-urlencoded",
-            "Api-Key": os.getenv("API_KEY"),
-            "Api-Nonce": str(int(time.time() * 1000)),
-            "Api-Sign": self.auth_api.xcoin_api_call(
-                "/trade/market_buy",
-                {
-                    "units": units,
-                    "order_currency": order_currency,
-                    "payment_currency": payment_currency,
-                },
-            ),  # You will need to define the `create_signature` function based on your API secret and encoding requirements.
-        }
-        data = {
+        # url = f"{BASE_URL}/trade/market_buy"
+        # headers = {
+        #     "accept": "application/json",
+        #     "content-type": "application/x-www-form-urlencoded",
+        #     "Api-Key": self.api_key,
+        #     "Api-Nonce": str(int(time.time() * 1000)),
+        #     "Api-Sign": self.auth_api.xcoin_api_call(
+        #         "/trade/market_buy",
+        #         {
+        #             "units": units,
+        #             "order_currency": order_currency,
+        #             "payment_currency": payment_currency,
+        #         },
+        #     ),  # You will need to define the `create_signature` function based on your API secret and encoding requirements.
+        # }
+        # data = {
+        #     "units": units,
+        #     "order_currency": order_currency,
+        #     "payment_currency": payment_currency,
+        # }
+        # async with httpx.AsyncClient() as client:
+        #     response = await client.post(url, data=data, headers=headers)
+        #     return response.json()
+        params = {
+            "endpoint": "/trade/market_buy",
             "units": units,
             "order_currency": order_currency,
             "payment_currency": payment_currency,
         }
-        async with httpx.AsyncClient() as client:
-            response = await client.post(url, data=data, headers=headers)
-            return response.json()
+        result = await self.auth_api.xcoin_api_call(params["endpoint"], params)
+        return result
 
     # 시장가 매도하기
     async def market_sell(
@@ -841,29 +911,37 @@ class BithumbPrivateService:
                 }
 
         """
-        url = f"{BASE_URL}/trade/market_sell"
-        headers = {
-            "accept": "application/json",
-            "content-type": "application/x-www-form-urlencoded",
-            "Api-Key": os.getenv("API_KEY"),
-            "Api-Nonce": str(int(time.time() * 1000)),
-            "Api-Sign": self.auth_api.xcoin_api_call(
-                "/trade/market_sell",
-                {
-                    "units": units,
-                    "order_currency": order_currency,
-                    "payment_currency": payment_currency,
-                },
-            ),  # You will need to define the `create_signature` function based on your API secret and encoding requirements.
-        }
-        data = {
+        # url = f"{BASE_URL}/trade/market_sell"
+        # headers = {
+        #     "accept": "application/json",
+        #     "content-type": "application/x-www-form-urlencoded",
+        #     "Api-Key": self.api_key,
+        #     "Api-Nonce": str(int(time.time() * 1000)),
+        #     "Api-Sign": self.auth_api.xcoin_api_call(
+        #         "/trade/market_sell",
+        #         {
+        #             "units": units,
+        #             "order_currency": order_currency,
+        #             "payment_currency": payment_currency,
+        #         },
+        #     ),  # You will need to define the `create_signature` function based on your API secret and encoding requirements.
+        # }
+        # data = {
+        #     "units": units,
+        #     "order_currency": order_currency,
+        #     "payment_currency": payment_currency,
+        # }
+        # async with httpx.AsyncClient() as client:
+        #     response = await client.post(url, data=data, headers=headers)
+        #     return response.json()
+        params = {
+            "endpoint": "/trade/market_sell",
             "units": units,
             "order_currency": order_currency,
             "payment_currency": payment_currency,
         }
-        async with httpx.AsyncClient() as client:
-            response = await client.post(url, data=data, headers=headers)
-            return response.json()
+        result = await self.auth_api.xcoin_api_call(params["endpoint"], params)
+        return result
 
     # 자동 주문하기
     async def stop_limit_order(
@@ -895,25 +973,37 @@ class BithumbPrivateService:
                 }
 
         """
-        url = f"{BASE_URL}/trade/stop_limit"
-        headers = {
-            "accept": "application/json",
-            "content-type": "application/x-www-form-urlencoded",
-            "Api-Key": os.getenv("API_KEY"),
-            "Api-Nonce": str(int(time.time() * 1000)),
-            "Api-Sign": self.auth_api.xcoin_api_call(
-                "/trade/stop_limit",
-                {
-                    "order_currency": order_currency,
-                    "payment_currency": payment_currency,
-                    "watch_price": watch_price,
-                    "price": price,
-                    "units": units,
-                    "type": order_type,
-                },
-            ),  # You will need to define the `create_signature` function based on your API secret and encoding requirements.
-        }
-        data = {
+        # url = f"{BASE_URL}/trade/stop_limit"
+        # headers = {
+        #     "accept": "application/json",
+        #     "content-type": "application/x-www-form-urlencoded",
+        #     "Api-Key": self.api_key,
+        #     "Api-Nonce": str(int(time.time() * 1000)),
+        #     "Api-Sign": self.auth_api.xcoin_api_call(
+        #         "/trade/stop_limit",
+        #         {
+        #             "order_currency": order_currency,
+        #             "payment_currency": payment_currency,
+        #             "watch_price": watch_price,
+        #             "price": price,
+        #             "units": units,
+        #             "type": order_type,
+        #         },
+        #     ),  # You will need to define the `create_signature` function based on your API secret and encoding requirements.
+        # }
+        # data = {
+        #     "order_currency": order_currency,
+        #     "payment_currency": payment_currency,
+        #     "watch_price": watch_price,
+        #     "price": price,
+        #     "units": units,
+        #     "type": order_type,
+        # }
+        # async with httpx.AsyncClient() as client:
+        #     response = await client.post(url, data=data, headers=headers)
+        #     return response.json()
+        params = {
+            "endpoint": "/trade/stop_limit",
             "order_currency": order_currency,
             "payment_currency": payment_currency,
             "watch_price": watch_price,
@@ -921,9 +1011,8 @@ class BithumbPrivateService:
             "units": units,
             "type": order_type,
         }
-        async with httpx.AsyncClient() as client:
-            response = await client.post(url, data=data, headers=headers)
-            return response.json()
+        result = await self.auth_api.xcoin_api_call(params["endpoint"], params)
+        return result
 
     # 주문 취소하기
     async def cancel_order(
@@ -950,28 +1039,37 @@ class BithumbPrivateService:
                 }
 
         """
-        url = f"{BASE_URL}/trade/cancel"
-        headers = {
-            "accept": "application/json",
-            "content-type": "application/x-www-form-urlencoded",
-            "Api-Key": os.getenv("API_KEY"),
-            "Api-Nonce": str(int(time.time() * 1000)),
-            "Api-Sign": self.auth_api.xcoin_api_call(
-                "/trade/cancel",
-                {
-                    "type": order_type,
-                    "order_id": order_id,
-                    "order_currency": order_currency,
-                    "payment_currency": payment_currency,
-                },
-            ),  # You will need to define the `create_signature` function based on your API secret and encoding requirements.
-        }
-        data = {
+        # url = f"{BASE_URL}/trade/cancel"
+        # headers = {
+        #     "accept": "application/json",
+        #     "content-type": "application/x-www-form-urlencoded",
+        #     "Api-Key": self.api_key,
+        #     "Api-Nonce": str(int(time.time() * 1000)),
+        #     "Api-Sign": self.auth_api.xcoin_api_call(
+        #         "/trade/cancel",
+        #         {
+        #             "type": order_type,
+        #             "order_id": order_id,
+        #             "order_currency": order_currency,
+        #             "payment_currency": payment_currency,
+        #         },
+        #     ),  # You will need to define the `create_signature` function based on your API secret and encoding requirements.
+        # }
+        # data = {
+        #     "type": order_type,
+        #     "order_id": order_id,
+        #     "order_currency": order_currency,
+        #     "payment_currency": payment_currency,
+        # }
+        # async with httpx.AsyncClient() as client:
+        #     response = await client.post(url, data=data, headers=headers)
+        #     return response.json()
+        params = {
+            "endpoint": "/trade/cancel",
             "type": order_type,
             "order_id": order_id,
             "order_currency": order_currency,
             "payment_currency": payment_currency,
         }
-        async with httpx.AsyncClient() as client:
-            response = await client.post(url, data=data, headers=headers)
-            return response.json()
+        result = await self.auth_api.xcoin_api_call(params["endpoint"], params)
+        return result

@@ -1,19 +1,10 @@
-#
-# XCoin API-call related functions
-#
-# @author	btckorea
-# @date	2017-04-12
-#
-# Compatible with python3 version.
-
 import base64
 import hashlib
 import hmac
 import math
 import time
 import urllib.parse
-
-import requests
+import httpx
 
 
 class XCoinAPI:
@@ -24,10 +15,6 @@ class XCoinAPI:
     def __init__(self, api_key, api_secret):
         self.api_key = api_key
         self.api_secret = api_secret
-        self.contents = ""
-
-    def body_callback(self, buf):
-        self.contents = buf
 
     def microtime(self, get_as_float=False):
         if get_as_float:
@@ -40,23 +27,11 @@ class XCoinAPI:
         mt_array = mt.split(" ")[:2]
         return mt_array[1] + mt_array[0][2:5]
 
-    def xcoin_api_call(self, endpoint, rg_params):
-        # 1. Api-Sign and Api-Nonce information generation.
-        # 2. Request related information from the Bithumb API server.
-        #
-        # - nonce: it is an arbitrary number that may only be used once.
-        # - api_sign: API signature information created in various combinations values.
-
-        endpoint_item_array = {"endpoint": endpoint}
-
-        uri_array = dict(
-            endpoint_item_array, **rg_params
-        )  # Concatenate the two arrays.
-
+    async def xcoin_api_call(self, endpoint, rg_params):
+        uri_array = {"endpoint": endpoint, **rg_params}
         str_data = urllib.parse.urlencode(uri_array)
 
         nonce = self.usec_time()
-
         data = endpoint + chr(0) + str_data + chr(0) + nonce
         utf8_data = data.encode("utf-8")
 
@@ -80,5 +55,6 @@ class XCoinAPI:
 
         url = self.api_url + endpoint
 
-        r = requests.post(url, headers=headers, data=rg_params)
-        return r.json()
+        async with httpx.AsyncClient() as client:
+            r = await client.post(url, headers=headers, data=rg_params)
+            return r.json()
