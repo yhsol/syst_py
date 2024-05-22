@@ -1,3 +1,4 @@
+from cmath import isnan
 import json
 import os
 
@@ -346,14 +347,89 @@ class BithumbService:
             # 구독 요청 메시지 전송
             await websocket.send(json.dumps(subscribe_message))
             print(
-                f"Subscribed to {subscribe_type} for {symbols} with tick types {tick_types}"
+                f"bithumb_ws_client: Subscribed to {subscribe_type} for {symbols} with tick types {tick_types}"
             )
 
             # 서버로부터 메시지 수신 및 출력
             while True:
                 message = await websocket.recv()
                 message_data = json.loads(message)
-                print(message_data)
+                print(f"bithumb_ws_client: Received message: {message_data}")
+
+    async def filter_coins_by_value(self, coins_data: dict, limit: int = 100):
+        """
+        Filter coins by 24-hour trading value and return the top N coins.
+
+        Parameters:
+            coins_data (dict): The dictionary containing current price information of all coins.
+                {
+                    "status": "0000",
+                    "data": {
+                        "BTC": {
+                            "opening_price": "92804000",
+                            "closing_price": "93565000",
+                            "min_price": "92585000",
+                            "max_price": "93900000",
+                            "units_traded": "359.38654768",
+                            "acc_trade_value": "33489632722.73385",
+                            "prev_closing_price": "92826000",
+                            "units_traded_24H": "478.53544545",
+                            "acc_trade_value_24H": "44569497270.86515",
+                            "fluctate_24H": "385000",
+                            "fluctate_rate_24H": "0.41"
+                        },
+                        "ETH": {
+                            "opening_price": "4311000",
+                            "closing_price": "4310000",
+                            "min_price": "4294000",
+                            "max_price": "4351000",
+                            "units_traded": "3147.895641287358349337",
+                            "acc_trade_value": "13607234885.237061815493005",
+                            "prev_closing_price": "4314000",
+                            "units_traded_24H": "4829.017820891019106504",
+                            "acc_trade_value_24H": "20879803821.046096267234167",
+                            "fluctate_24H": "-44000",
+                            "fluctate_rate_24H": "-1.01"
+                        },
+                        ...
+                        "date": "1716119655233"
+                    }
+                }
+            limit (int): The number of top coins to return based on trading value.
+
+        Returns:
+            list: A list of symbols of the top N coins sorted by 24-hour trading value.
+        """
+        if coins_data["status"] != "0000":
+            return []  # Return an empty list if the request was not successful
+
+        # Extract and sort the coins by their 24-hour trading value
+        coins = [
+            {
+                "symbol": key,
+                "trade_volume": float(value["units_traded_24H"]),
+                "trade_value": float(value["acc_trade_value_24H"]),
+                "data": value,
+            }
+            for key, value in coins_data["data"].items()
+            if key != "date"
+            and value["units_traded_24H"]
+            and value["acc_trade_value_24H"]
+        ]
+
+        # Filter out coins with invalid trade volume or value
+        valid_coins = [
+            coin
+            for coin in coins
+            if not (isnan(coin["trade_volume"]) or isnan(coin["trade_value"]))
+        ]
+
+        # Sort by trade value and get the top N coins
+        sorted_by_value = sorted(
+            valid_coins, key=lambda coin: coin["trade_value"], reverse=True
+        )[:limit]
+
+        return [coin["symbol"] for coin in sorted_by_value]
 
 
 class BithumbPrivateService:
