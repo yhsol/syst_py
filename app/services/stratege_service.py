@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 import pytz
 
 from app.services.bithumb_service import BithumbService
@@ -29,17 +30,26 @@ class StrategyService:
         return df
 
     def compute_signals(self, df, entry_length=20, exit_length=10):
-        df["upper"] = df["high"].rolling(window=entry_length).max()
-        df["lower"] = df["low"].rolling(window=entry_length).min()
-        df["exit_upper"] = df["high"].rolling(window=exit_length).max()
-        df["exit_lower"] = df["low"].rolling(window=exit_length).min()
+        try:
+            # Ensure the 'high' and 'low' columns are of float type
+            df["high"] = pd.to_numeric(df["high"], errors="coerce")
+            df["low"] = pd.to_numeric(df["low"], errors="coerce")
 
-        df["long_entry"] = df["high"] > df["upper"].shift(1)
-        df["short_entry"] = df["low"] < df["lower"].shift(1)
-        df["long_exit"] = df["low"] < df["exit_lower"].shift(1)
-        df["short_exit"] = df["high"] > df["exit_upper"].shift(1)
+            # Calculate rolling max and min
+            df["upper"] = df["high"].rolling(window=entry_length).max()
+            df["lower"] = df["low"].rolling(window=entry_length).min()
+            df["exit_upper"] = df["high"].rolling(window=exit_length).max()
+            df["exit_lower"] = df["low"].rolling(window=exit_length).min()
 
-        return df
+            # Compute entry and exit signals
+            df["long_entry"] = df["high"] > df["upper"].shift(1)
+            df["short_entry"] = df["low"] < df["lower"].shift(1)
+            df["long_exit"] = df["low"] < df["exit_lower"].shift(1)
+            df["short_exit"] = df["high"] > df["exit_upper"].shift(1)
+
+            return df
+        except Exception as e:
+            print(f"Error in compute_signals: {e}")
 
     def determine_signal_status(self, filtered_signals, signal_columns) -> dict:
         if filtered_signals.empty:
@@ -106,3 +116,45 @@ class StrategyService:
             "type_last_true_timestamp": signal_status["last_true_timestamp"],
             "data": filtered_signals.head(20).to_dict(orient="records"),
         }
+
+    async def vwma(
+        self,
+        order_currency: str,
+        payment_currency: str,
+        length: int,
+        chart_intervals: str,
+    ):
+        price_data = await self.bithumb_service.get_candlestick_data(
+            order_currency, payment_currency, chart_intervals
+        )
+
+        if price_data["status"] != "0000":
+            raise ValueError("Failed to fetch data for VWMA calculation")
+
+        data = price_data["data"]
+        df = pd.DataFrame(
+            data,
+            columns=[
+                "timestamp",
+                "opening_price",
+                "closing_price",
+                "high_price",
+                "low_price",
+                "units_traded",
+            ],
+        )
+
+        # 문자열 데이터를 숫자로 변환
+        df["closing_price"] = df["closing_price"].astype(float)
+        df["units_traded"] = df["units_traded"].astype(float)
+
+        df["volume"] = df["units_traded"]
+        df["close"] = df["closing_price"]
+
+        price_volume = df["close"] * df["volume"]
+        df["VWMA"] = (
+            price_volume.rolling(window=length).sum()
+            / df["volume"].rolling(window=length).sum()
+        )
+
+        return df[["timestamp", "VWMA"]]

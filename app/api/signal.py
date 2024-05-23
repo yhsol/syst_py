@@ -74,7 +74,8 @@ async def trade(
     timeframe: str = "1h",
 ):
     print(f"Endpoint Receive: trade: Symbols: {symbols}, Timeframe: {timeframe}")
-    return await trading_bot.run(symbols=symbols, timeframe=timeframe)
+    await trading_bot.run(symbols=symbols, timeframe=timeframe)
+    return {"status": "trading started"}
 
 
 @router.get(f"{ROOT}/select")
