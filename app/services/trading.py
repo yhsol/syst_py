@@ -639,8 +639,14 @@ class TradingBot:
 
             # 매수
             if await self.check_entry_condition(symbol, latest_signal):
-                if len(self.holding_coins) >= 3 or symbol in self.holding_coins:
+                if symbol in self.holding_coins:
+                    return  # 이미 보유한 코인인 경우 추가 매수하지 않음
+
+                if len(self.holding_coins) >= 3:
                     return  # 이미 3개 이상의 코인을 보유하고 있으면 추가 매수하지 않음
+
+                if symbol in self.in_trading_process_coins:
+                    return  # 이미 매수 진행 중인 경우 추가 매수하지 않음
 
                 self.in_trading_process_coins.append(symbol)
 
@@ -663,7 +669,10 @@ class TradingBot:
                 await self.check_stop_loss_condition(symbol, current_price)
             ):
                 if symbol not in self.holding_coins:
-                    return
+                    return  # 보유한 코인이 아닌 경우 매도하지 않음
+
+                if symbol in self.in_trading_process_coins:
+                    return  # 이미 매도 진행 중인 경우 추가 매도하지 않음
 
                 self.in_trading_process_coins.append(symbol)
 
@@ -685,6 +694,9 @@ class TradingBot:
 
             # profit percentage 를 계속해서 history 쌓듯이 쌓다가, 최고치보다 일정 수준 떨어졌을 때도 매도하는거 추가해야겠다.
             if profit_percentage is not None and profit_percentage > 5:
+                if symbol in self.in_trading_process_coins:
+                    return  # 이미 매도 진행 중인 경우 추가 매도하지 않음
+
                 self.in_trading_process_coins.append(symbol)
                 if symbol in self.trading_history:
                     self.trading_history[symbol].append(
