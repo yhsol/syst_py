@@ -1,4 +1,4 @@
 *.env
 Pipfile.lock
 note.md
-trading_bot.log
+*.log

@@ -1035,12 +1035,21 @@ class BithumbPrivateService:
         # async with httpx.AsyncClient() as client:
         #     response = await client.post(url, data=data, headers=headers)
         #     return response.json()
+
+        if not isinstance(units, float):
+            units = float(units)
+        if not isinstance(order_currency, str):
+            order_currency = str(order_currency)
+        if not isinstance(payment_currency, str):
+            payment_currency = str(payment_currency)
+
         params = {
             "endpoint": "/trade/market_sell",
             "units": units,
             "order_currency": order_currency,
             "payment_currency": payment_currency,
         }
+        print(f"sell params: {params}")
         result = await self.auth_api.xcoin_api_call(params["endpoint"], params)
         return result
 
