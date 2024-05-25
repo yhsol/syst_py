@@ -141,6 +141,7 @@ class TradingBot:
         # 주문 가능 수량 조회
         balance = await self.bithumb_private.get_balance(symbol)
         available_krw = balance["data"]["available_krw"]
+        available_krw = float(available_krw)
 
         # 매수 가능 금액을 10000원으로 제한
         available_krw = min(available_krw, self.available_krw_to_each_trade)
@@ -152,10 +153,11 @@ class TradingBot:
 
         orderbook = await self.bithumb.get_orderbook(symbol)
         ask_price = orderbook["data"]["asks"][0]["price"]
+        ask_price = float(ask_price)
 
         # 수수료 0.28% 라고 가정. 정화하지 않긴 한데, bithumb page 에서 책정하는게 정확히 어떤건지 알 수 없어서 안전한 수량으로 계산
         fee = 0.0028
-        units = float(available_krw) / float(ask_price) * (1 - fee)
+        units = available_krw / ask_price * (1 - fee)
 
         return units
 
