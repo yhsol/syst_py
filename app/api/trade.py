@@ -41,6 +41,11 @@ async def stoptrade():
     return {"status": "trading stopped"}
 
 
+@router.get(f"{ROOT}/status")
+async def status():
+    return trading_bot.get_status()
+
+
 @router.get(f"{ROOT}/addsymbol")
 async def addsymbol(
     background_tasks: BackgroundTasks, symbols: Optional[List[str]] = Query(None)
@@ -54,6 +59,27 @@ async def addsymbol(
             background_tasks.add_task(trading_bot.trade, symbol)
             return {"status": f"{symbol} added to active symbols and started trading"}
         return {"status": f"{symbol} is already in active symbols"}
+
+
+@router.get(f"{ROOT}/addholding")
+async def add_holding(
+    background_tasks: BackgroundTasks,
+    symbol: str,
+    units: float,
+    buy_price: float,
+    force: bool = False,
+):
+    if symbol in trading_bot.holding_coins and not force:
+        return {"status": f"{symbol} is already in holding coins"}
+
+    await trading_bot.add_holding_coin(symbol, units, buy_price)
+    await trading_bot.add_active_symbols([symbol])
+    background_tasks.add_task(
+        trading_bot.trade, symbol, timeframe=trading_bot.current_timeframe
+    )
+    return {
+        "status": f"{symbol} add to holding coin and active symbols and started trading"
+    }
 
 
 @router.get(f"{ROOT}/reselect")
