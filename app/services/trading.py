@@ -5,6 +5,7 @@ import traceback
 from datetime import datetime
 from typing import Dict, List, Optional, Set
 
+from fastapi import Query
 import pandas as pd
 import websockets
 
@@ -40,13 +41,10 @@ class TradingBot:
         self.trading_history: Dict = {}
         self.in_trading_process_coins: List = []
         self.interest_symbols = ["STX", "LINK", "PEPE", "BONK", "ARB"]
-
-    async def handle_trade(self, symbol, signal):
-        if await self.check_entry_condition(signal):
-            await self.execute_trade("buy", symbol)
-        elif await self.check_exit_condition(signal):
-            await self.execute_trade("sell", symbol)
-            await self.disconnect(symbol)
+        self.running_tasks: Dict[str, asyncio.Task] = (
+            {}
+        )  # 실행 중인 태스크를 저장할 딕셔너리
+        self.websocket_connections: Dict[str, websockets.WebSocketClientProtocol] = {}
 
     def format_trading_history(self, trading_history):
         print("log=> Trading history: ", trading_history)
@@ -109,12 +107,138 @@ class TradingBot:
 
         return coin_balance
 
+    async def buy(self, symbol):
+        logger.info("Execute to buy %s", symbol)
+        try:
+            # 매수 주문 실행
+            buy_units = await self.get_available_buy_units(symbol)
+
+            available_units = round(buy_units, 8)
+
+            result = await self.bithumb_private.market_buy(
+                units=available_units,
+                order_currency=symbol,
+                payment_currency="KRW",
+            )
+            logger.info("Buy result: %s", result)
+
+            if result and result["status"] == "0000" and "order_id" in result:
+                order_detail = await self.bithumb_private.get_order_detail(
+                    order_id=result["order_id"],
+                    order_currency=symbol,
+                    payment_currency="KRW",
+                )
+                logger.info("Buy Order detail: %s", order_detail)
+
+                # 주문 상세 정보가 성공적으로 조회되었는지 확인
+                if order_detail and order_detail["status"] == "0000":
+                    data = order_detail.get("data", {})
+                    contracts = data.get("contract", [])
+                    if contracts:
+                        contract = contracts[0]
+                        buy_price = float(contract.get("price", 0))
+                        stop_loss_price = buy_price * 0.98
+
+                        self.holding_coins[symbol] = {
+                            "units": available_units,
+                            "buy_price": buy_price,
+                            "stop_loss_price": stop_loss_price,
+                            "order_id": result["order_id"],
+                        }
+                        # 매수 체결 메시지
+                        await send_telegram_message(
+                            (
+                                f"🟢 {symbol} 매수 체결! 🟢\n\n"
+                                f"💰 매수 가격: {buy_price}\n"
+                                f"📉 손절가: {stop_loss_price}\n\n"
+                                f"📊 Holding coins: {list(self.holding_coins.keys())}\n\n"
+                            ),
+                            term_type="short-term",
+                        )
+                        logger.info(
+                            "Buy Success and Holding coins: %s", self.holding_coins
+                        )
+                    else:
+                        logger.error(
+                            "No contract information available for order_id: %s",
+                            result["order_id"],
+                        )
+                        logger.error("Traceback: %s", traceback.format_exc())
+                else:
+                    logger.error(
+                        "Failed to retrieve order details for order_id: %s",
+                        result["order_id"],
+                    )
+                    logger.error("Traceback: %s", traceback.format_exc())
+            return {
+                "status": "success",
+                "message": f"Successfully buy {available_units} {symbol}",
+            }
+        except Exception as e:
+            logger.error("An error occurred while buying %s: %s", symbol, e)
+            logger.error("Traceback: %s", traceback.format_exc())
+            return {"status": "error", "message": str(e)}
+
+    async def sell(self, symbol, amount=1.0):
+        try:
+            logger.info("Execute to sell %s", symbol)
+            sell_units = await self.get_available_sell_units(symbol)
+
+            if amount < 1.0:
+                sell_units = round(sell_units * amount, 8)
+
+            logger.info("%s: Available sell units: %s", symbol, sell_units)
+            result = await self.bithumb_private.market_sell(
+                units=sell_units,
+                order_currency=symbol,
+                payment_currency="KRW",
+            )
+            logger.info("Sell result: %s", result)
+
+            # 매도 주문이 성공하면 holding_coins 에서 해당 코인 제거
+            if result and result["status"] == "0000" and "order_id" in result:
+                order_detail = await self.bithumb_private.get_order_detail(
+                    order_id=result["order_id"],
+                    order_currency=symbol,
+                    payment_currency="KRW",
+                )
+                logger.info("Sell Order detail: %s", order_detail)
+
+                # 주문 상세 정보가 성공적으로 조회되었는지 확인
+                if order_detail and order_detail["status"] == "0000":
+                    data = order_detail.get("data", {})
+                    contracts = data.get("contract", [])
+                    if contracts:
+                        contract = contracts[0]
+                        current_price = float(contract.get("price", 0))
+                        profit = current_price - self.holding_coins[symbol]["buy_price"]
+                        # 매도 체결 메시지
+                        await send_telegram_message(
+                            (
+                                f"🔴 {symbol} 매도 체결! 🔴\n\n"
+                                f"💰 매도 가격: {current_price}\n\n"
+                                f"📈 수익: {profit}\n\n"
+                                f"📊 Holding coins: {list(self.holding_coins.keys())}\n\n"
+                            ),
+                            term_type="short-term",
+                        )
+                if symbol in self.holding_coins:
+                    self.holding_coins.pop(symbol)
+
+                logger.info("Sell Success and Holding coins: %s", self.holding_coins)
+
+            return {
+                "status": "success",
+                "message": f"Successfully sold {sell_units} {symbol}",
+            }
+        except Exception as e:
+            logger.error("An error occurred while selling %s: %s", symbol, e)
+            logger.error("Traceback: %s", traceback.format_exc())
+            return {"status": "error", "message": str(e)}
+
     async def execute_trade(self, action, symbol, amount=1.0):
-        # 매수 또는 매도 주문 실행
         try:
             if action == "buy":
-                logger.info("Execute to buy %s", symbol)
-
                 # 매수 시그널
                 await send_telegram_message(
                     (
@@ -125,80 +249,10 @@ class TradingBot:
                 )
 
                 # 매수 주문 실행
-                buy_units = await self.get_available_buy_units(symbol)
-
-                # 전체 unit 의 70% 만큼만 매수. bithumb 에서 제한하는 듯?
-                # https://github.com/sharebook-kr/pybithumb/issues/26
-                # 소수점 8자리까지만 가능
-                # 그런데 전체 자산의 70% 이상을 매수할 일은 없을 확률이 높으니 고려하지 않아도 될 듯.
-                # available_units = round(buy_units * 0.7, 8)
-
-                available_units = round(buy_units, 8)
-
-                result = await self.bithumb_private.market_buy(
-                    units=available_units,
-                    order_currency=symbol,
-                    payment_currency="KRW",
-                )
-                logger.info("Buy result: %s", result)
-
-                # 매수 주문이 성공하면 매수한 코인을 holding_coins 에 추가
-                # result 에 order_id 가 있으면 주문이 성공한 것으로 간주
-                # holding_coins 에는 매수한 코인의 정보를 저장. order_id 도 추가.
-                if result and result["status"] == "0000" and "order_id" in result:
-                    order_detail = await self.bithumb_private.get_order_detail(
-                        order_id=result["order_id"],
-                        order_currency=symbol,
-                        payment_currency="KRW",
-                    )
-                    logger.info("Buy Order detail: %s", order_detail)
-
-                    # 주문 상세 정보가 성공적으로 조회되었는지 확인
-                    if order_detail and order_detail["status"] == "0000":
-                        data = order_detail.get("data", {})
-                        contracts = data.get("contract", [])
-                        if contracts:
-                            contract = contracts[0]
-                            buy_price = float(contract.get("price", 0))
-                            stop_loss_price = buy_price * 0.98
-
-                            self.holding_coins[symbol] = {
-                                "units": available_units,
-                                "buy_price": buy_price,
-                                "stop_loss_price": stop_loss_price,
-                                "order_id": result["order_id"],
-                            }
-                            # 매수 체결 메시지
-                            await send_telegram_message(
-                                (
-                                    f"🟢 {symbol} 매수 체결! 🟢\n\n"
-                                    f"💰 매수 가격: {buy_price}\n"
-                                    f"📉 손절가: {stop_loss_price}\n\n"
-                                    f"📊 Holding coins: {list(self.holding_coins.keys())}\n\n"
-                                ),
-                                term_type="short-term",
-                            )
-                            logger.info(
-                                "Buy Success and Holding coins: %s", self.holding_coins
-                            )
-                        else:
-                            logger.error(
-                                "No contract information available for order_id: %s",
-                                result["order_id"],
-                            )
-                            logger.error("Traceback: %s", traceback.format_exc())
-                    else:
-                        logger.error(
-                            "Failed to retrieve order details for order_id: %s",
-                            result["order_id"],
-                        )
-                        logger.error("Traceback: %s", traceback.format_exc())
-
+                result = await self.buy(symbol)
                 return result
 
             if action == "sell":
-                logger.info("Execute to sell %s", symbol)
-
                 # 매도 시그널
                 await send_telegram_message(
                     (
@@ -210,80 +264,14 @@ class TradingBot:
                 )
 
                 # 매도 주문 실행
-                sell_units = await self.get_available_sell_units(symbol)
-
-                if amount < 1.0:
-                    sell_units = round(sell_units * amount, 8)
-
-                # 2024-05-25 14:07:53,565 - app.services.trading - INFO - Execute to sell PEPE
-                # log=> Trading history:  {'PEPE': [{'action': 'buy', 'entry_signal': 'Signal detected: long_entry, short_exit', 'price': 0.0203, 'entry_time': '2024-05-25 12:47:56'}, {'action': 'sell', 'exit_signal': 'Signal detected: short_entry, long_exit', 'price': 0.02, 'exit_time': '2024-05-25 14:07:53'}], 'ARB': [{'action': 'buy', 'entry_signal': 'Signal detected: long_entry, short_exit', 'price': 1638.0, 'entry_time': '2024-05-25 12:52:04'}], 'EOS': [{'action': 'buy', 'entry_signal': 'Signal detected: long_entry, short_exit', 'price': 1189.0, 'entry_time': '2024-05-25 12:53:14'}]}
-                # log=> Formatted entries:  ['PEPE:', '  - Buy at 0.0203 on 2024-05-25 12:47:56', '  - Sell at 0.02 on 2024-05-25 14:07:53', 'ARB:', '  - Buy at 1638.0 on 2024-05-25 12:52:04', 'EOS:', '  - Buy at 1189.0 on 2024-05-25 12:53:14']
-                # log=> Analyzing and trading %s on %s timeframe with holding coins: %s DOGE 10m ['PEPE', 'ARB', 'EOS']
-                # log=> Analyzing and trading %s on %s timeframe with holding coins: %s BLUR 10m ['PEPE', 'ARB', 'EOS']
-                # log=> Analyzing and trading %s on %s timeframe with holding coins: %s BIGTIME 10m ['PEPE', 'ARB', 'EOS']
-                # 2024-05-25 14:07:55,017 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7037219038:AAEvzPsbCBm3nw-lYZZz_ZnNM3ePKOvf2gQ/sendMessage "HTTP/1.1 200 OK"
-                # 2024-05-25 14:07:55,226 - httpx - INFO - HTTP Request: POST https://api.bithumb.com/info/balance "HTTP/1.1 200 OK"
-                # 2024-05-25 14:07:55,235 - app.services.trading - INFO - Available sell units: 0.00000000
-                # sell params: {'endpoint': '/trade/market_sell', 'units': 0.0, 'order_currency': 'PEPE', 'payment_currency': 'KRW'}
-                # 2024-05-25 14:07:55,373 - httpx - INFO - HTTP Request: POST https://api.bithumb.com/trade/market_sell "HTTP/1.1 200 OK"
-                # 2024-05-25 14:07:55,375 - app.services.trading - INFO - Sell result: {'status': '5500', 'message': 'Invalid Parameter'}
-
-                logger.info("%s: Available sell units: %s", symbol, sell_units)
-                result = await self.bithumb_private.market_sell(
-                    units=sell_units,
-                    order_currency=symbol,
-                    payment_currency="KRW",
-                )
-                logger.info("Sell result: %s", result)
-
-                # 매도 주문이 성공하면 holding_coins 에서 해당 코인 제거
-                if result and result["status"] == "0000" and "order_id" in result:
-                    order_detail = await self.bithumb_private.get_order_detail(
-                        order_id=result["order_id"],
-                        order_currency=symbol,
-                        payment_currency="KRW",
-                    )
-                    logger.info("Sell Order detail: %s", order_detail)
-
-                    # 주문 상세 정보가 성공적으로 조회되었는지 확인
-                    if order_detail and order_detail["status"] == "0000":
-                        data = order_detail.get("data", {})
-                        contracts = data.get("contract", [])
-                        if contracts:
-                            contract = contracts[0]
-                            current_price = float(contract.get("price", 0))
-                            profit = (
-                                current_price - self.holding_coins[symbol]["buy_price"]
-                            )
-                            # 매도 체결 메시지
-                            await send_telegram_message(
-                                (
-                                    f"🔴 {symbol} 매도 체결! 🔴\n\n"
-                                    f"💰 매도 가격: {current_price}\n\n"
-                                    f"📈 수익: {profit}\n\n"
-                                    f"📊 Holding coins: {list(self.holding_coins.keys())}\n\n"
-                                ),
-                                term_type="short-term",
-                            )
-                    if symbol in self.holding_coins:
-                        self.holding_coins.pop(symbol)
-
-                    logger.info(
-                        "Sell Success and Holding coins: %s", self.holding_coins
-                    )
+                result = await self.sell(symbol, amount)
                 return result
+
         except Exception as e:
             logger.error(
                 "An error occurred while executing %s on %s: %s", action, symbol, e
             )
             logger.error("Traceback: %s", traceback.format_exc())
-
-    async def connect(self, symbol):
-        self.active_symbols.add(symbol)
-
-    async def disconnect(self, symbol):
-        # WebSocket 연결 해제
-        self.active_symbols.remove(symbol)
 
     async def calculate_rsi(self, close_prices: List[float], period: int = 14) -> float:
         gains = [
@@ -423,16 +411,23 @@ class TradingBot:
         selected = sorted_symbols[:10] if len(sorted_symbols) >= 10 else sorted_symbols
         return selected
 
+    async def add_active_symbols(self, symbols: Optional[List[str]] = Query(None)):
+        if symbols:
+            for symbol in symbols:
+                if symbol not in self.active_symbols:
+                    self.active_symbols.add(symbol)
+
     async def trade(self, symbol: str, timeframe: str = "1h"):
         await self.initialize_candlestick_data(symbol, timeframe)
-        await self.subscribe_to_websocket(symbol, timeframe)
+        await self.connect_to_websocket(symbol, timeframe)
 
-    async def subscribe_to_websocket(
+    async def connect_to_websocket(
         self,
         symbol: str,
         timeframe: str,
     ):
         async with websockets.connect("wss://pubwss.bithumb.com/pub/ws") as websocket:
+            self.websocket_connections[symbol] = websocket
             subscribe_message = json.dumps(
                 {
                     "type": "ticker",
@@ -457,6 +452,22 @@ class TradingBot:
                     logger.error("An error occurred: %s", e)
                     logger.error("Traceback: %s", traceback.format_exc())
                 await asyncio.sleep(1)
+
+    async def disconnect(self, symbol):
+        # WebSocket 연결 해제
+        if symbol in self.websocket_connections:
+            websocket = self.websocket_connections.pop(symbol)
+            await websocket.close()
+
+        self.active_symbols.remove(symbol)
+
+        if symbol in self.running_tasks:
+            task = self.running_tasks.pop(symbol)
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                logger.info("Task for %s has been cancelled", symbol)
 
     def update_candlestick_data(self, symbol: str, content: dict):
         """
@@ -754,8 +765,22 @@ class TradingBot:
             timeframe,
         )
 
-        tasks = [self.trade(symbol, timeframe) for symbol in self.active_symbols]
+        # tasks = [self.trade(symbol, timeframe) for symbol in self.active_symbols]
+        # await asyncio.gather(*tasks)
+        # Task를 생성하고 running_tasks에 저장
+        tasks = []
+        for symbol in self.active_symbols:
+            task = asyncio.create_task(self.trade(symbol, timeframe))
+            self.running_tasks[symbol] = task
+            tasks.append(task)
+
         await asyncio.gather(*tasks)
+
+    async def stop(self):
+        for symbol in list(self.running_tasks.keys()):
+            await self.disconnect(symbol)
+        self.running_tasks.clear()
+        self.active_symbols.clear()
 
 
 # trading history 에 best profit 을 추가해서, best profit 이후에 일정 수준 떨어지면 일정 물량 매도하는 로직 추가.
