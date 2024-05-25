@@ -129,6 +129,7 @@ async def reselect(background_tasks: BackgroundTasks):
     }
 
 
+@router.get(f"{ROOT}/setavailablekrw")
 async def set_available_krw_to_each_trade(krw: float):
     trading_bot.available_krw_to_each_trade = krw
     return {"status": f"available_krw_to_each_trade is set to {krw}"}
