@@ -129,6 +129,11 @@ async def reselect(background_tasks: BackgroundTasks):
     }
 
 
+async def set_available_krw_to_each_trade(krw: float):
+    trading_bot.available_krw_to_each_trade = krw
+    return {"status": f"available_krw_to_each_trade is set to {krw}"}
+
+
 @router.get(f"{ROOT}/apitest")
 async def apitest():
     result = "add api for test"

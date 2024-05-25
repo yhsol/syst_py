@@ -52,6 +52,7 @@ class TradingBot:
         )  # 실행 중인 태스크를 저장할 딕셔너리
         self.websocket_connections: Dict[str, websockets.WebSocketClientProtocol] = {}
         self.current_timeframe = "10m"
+        self.available_krw_to_each_trade: float = 10000
 
     def format_trading_history(self, trading_history):
         print("log=> Trading history: ", trading_history)
@@ -148,7 +149,7 @@ class TradingBot:
         available_krw = balance["data"]["available_krw"]
 
         # 매수 가능 금액을 10000원으로 제한
-        available_krw = 10000
+        available_krw = min(available_krw, self.available_krw_to_each_trade)
 
         # 매수 금액을 어떻게 정할지는 좀 더 고민해봐야할 듯.
         # available_krw 의 몇 % 로 할 수도 있고.
@@ -796,9 +797,11 @@ class TradingBot:
         return {
             "active_symbols": list(self.active_symbols),
             "holding_coins": self.holding_coins,
+            "available_krw_to_each_trade": self.available_krw_to_each_trade,
             "in_trading_process_coins": self.in_trading_process_coins,
             "running_tasks": list(self.running_tasks.keys()),
             "websocket_connections": list(self.websocket_connections.keys()),
+            "interest_symbols": list(self.interest_symbols),
             "trading_history": self.trading_history,
         }
 
