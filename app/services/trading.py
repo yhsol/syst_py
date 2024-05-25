@@ -40,13 +40,7 @@ class TradingBot:
         self.holding_coins: Dict = {}
         self.trading_history: Dict = {}
         self.in_trading_process_coins: List = []
-        self.interest_symbols: Set[str] = {
-            "STX",
-            "LINK",
-            "PEPE",
-            "BONK",
-            "ARB",
-        }
+        self.interest_symbols: Set[str] = set()
         self.running_tasks: Dict[str, asyncio.Task] = (
             {}
         )  # 실행 중인 태스크를 저장할 딕셔너리

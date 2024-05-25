@@ -38,14 +38,14 @@ async def runtrade(
     return {"status": "trading started"}
 
 
-@router.get(f"{ROOT}/stop")
-async def stoptrade():
+@router.get(f"{ROOT}/stop-all")
+async def stop_all():
     await trading_bot.stop_all()
     return {"status": "trading stopped"}
 
 
-@router.get(f"{ROOT}/stopsymbol")
-async def stopsymbol(symbol: str):
+@router.get(f"{ROOT}/stop-symbol")
+async def stop_symbol(symbol: str):
     symbol = symbol.upper()
     await trading_bot.stop_symbol(symbol)
     return {"status": f"{symbol} trading stopped"}
@@ -56,24 +56,13 @@ async def status():
     return trading_bot.get_status()
 
 
-@router.get(f"{ROOT}/addsymbol")
-async def addsymbol(
-    background_tasks: BackgroundTasks, symbols: Optional[List[str]] = Query(None)
-):
-    if symbols is None:
-        return {"status": "No symbols to add"}
-
-    symbols = [symbol.upper() for symbol in symbols]
-
-    for symbol in symbols:
-        if symbol not in trading_bot.active_symbols:
-            await trading_bot.add_active_symbols(symbols)
-            background_tasks.add_task(trading_bot.trade, symbol)
-            return {"status": f"{symbol} added to active symbols and started trading"}
-        return {"status": f"{symbol} is already in active symbols"}
+@router.get(f"{ROOT}/set-available-krw")
+async def set_available_krw(krw: float):
+    trading_bot.available_krw_to_each_trade = krw
+    return {"status": f"available_krw_to_each_trade is set to {krw}"}
 
 
-@router.get(f"{ROOT}/addholding")
+@router.get(f"{ROOT}/add-holding")
 async def add_holding(
     background_tasks: BackgroundTasks,
     symbol: str,
@@ -95,7 +84,7 @@ async def add_holding(
     }
 
 
-@router.get(f"{ROOT}/removeholding")
+@router.get(f"{ROOT}/remove-holding")
 async def remove_holding(symbol: str):
     symbol = symbol.upper()
     if symbol not in trading_bot.holding_coins:
@@ -105,6 +94,23 @@ async def remove_holding(symbol: str):
     await trading_bot.remove_active_symbols([symbol])
 
     return {"status": f"{symbol} removed from holding coins"}
+
+
+@router.get(f"{ROOT}/add-active-symbol")
+async def add_active_symbol(
+    background_tasks: BackgroundTasks, symbols: Optional[List[str]] = Query(None)
+):
+    if symbols is None:
+        return {"status": "No symbols to add"}
+
+    symbols = [symbol.upper() for symbol in symbols]
+
+    for symbol in symbols:
+        if symbol not in trading_bot.active_symbols:
+            await trading_bot.add_active_symbols(symbols)
+            background_tasks.add_task(trading_bot.trade, symbol)
+            return {"status": f"{symbol} added to active symbols and started trading"}
+        return {"status": f"{symbol} is already in active symbols"}
 
 
 @router.get(f"{ROOT}/reselect")
@@ -129,13 +135,7 @@ async def reselect(background_tasks: BackgroundTasks):
     }
 
 
-@router.get(f"{ROOT}/setavailablekrw")
-async def set_available_krw_to_each_trade(krw: float):
-    trading_bot.available_krw_to_each_trade = krw
-    return {"status": f"available_krw_to_each_trade is set to {krw}"}
-
-
-@router.get(f"{ROOT}/apitest")
+@router.get(f"{ROOT}/api-test")
 async def apitest():
     result = "add api for test"
     return result
