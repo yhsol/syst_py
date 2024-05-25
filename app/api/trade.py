@@ -28,6 +28,9 @@ async def runtrade(
     symbols: Optional[List[str]] = Query(None),
     timeframe: str = "1h",
 ):
+    if symbols is not None:
+        symbols = [symbol.upper() for symbol in symbols]
+
     print(
         f"Endpoint runtrade Receive: trade: Symbols: {symbols}, Timeframe: {timeframe}"
     )
@@ -37,8 +40,15 @@ async def runtrade(
 
 @router.get(f"{ROOT}/stop")
 async def stoptrade():
-    await trading_bot.stop()
+    await trading_bot.stop_all()
     return {"status": "trading stopped"}
+
+
+@router.get(f"{ROOT}/stopsymbol")
+async def stopsymbol(symbol: str):
+    symbol = symbol.upper()
+    await trading_bot.stop_symbol(symbol)
+    return {"status": f"{symbol} trading stopped"}
 
 
 @router.get(f"{ROOT}/status")
@@ -52,6 +62,8 @@ async def addsymbol(
 ):
     if symbols is None:
         return {"status": "No symbols to add"}
+
+    symbols = [symbol.upper() for symbol in symbols]
 
     for symbol in symbols:
         if symbol not in trading_bot.active_symbols:
@@ -69,6 +81,7 @@ async def add_holding(
     buy_price: float,
     force: bool = False,
 ):
+    symbol = symbol.upper()
     if symbol in trading_bot.holding_coins and not force:
         return {"status": f"{symbol} is already in holding coins"}
 
@@ -80,6 +93,18 @@ async def add_holding(
     return {
         "status": f"{symbol} add to holding coin and active symbols and started trading"
     }
+
+
+@router.get(f"{ROOT}/removeholding")
+async def remove_holding(symbol: str):
+    symbol = symbol.upper()
+    if symbol not in trading_bot.holding_coins:
+        return {"status": f"{symbol} is not in holding coins"}
+
+    await trading_bot.remove_holding_coin(symbol)
+    await trading_bot.remove_active_symbols([symbol])
+
+    return {"status": f"{symbol} removed from holding coins"}
 
 
 @router.get(f"{ROOT}/reselect")
@@ -102,3 +127,9 @@ async def reselect(background_tasks: BackgroundTasks):
         "status": "active symbols refreshed and started trading",
         "active_symbols": list(trading_bot.active_symbols),
     }
+
+
+@router.get(f"{ROOT}/apitest")
+async def apitest():
+    result = "add api for test"
+    return result

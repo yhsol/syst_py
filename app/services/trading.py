@@ -40,7 +40,13 @@ class TradingBot:
         self.holding_coins: Dict = {}
         self.trading_history: Dict = {}
         self.in_trading_process_coins: List = []
-        self.interest_symbols = ["STX", "LINK", "PEPE", "BONK", "ARB"]
+        self.interest_symbols: Set[str] = {
+            "STX",
+            "LINK",
+            "PEPE",
+            "BONK",
+            "ARB",
+        }
         self.running_tasks: Dict[str, asyncio.Task] = (
             {}
         )  # 실행 중인 태스크를 저장할 딕셔너리
@@ -68,15 +74,73 @@ class TradingBot:
             logger.error("Traceback: %s", traceback.format_exc())
             return str(trading_history)
 
-    async def check_entry_condition(self, signal):
+    async def check_entry_condition(self, symbol, signal):
         if ("short_exit" in signal) or ("long_entry" in signal):
+            # 매수 시그널
+            await send_telegram_message(
+                (
+                    f"🚀 {symbol} 매수 시그널 발생! 🚀\n\n"
+                    f"{self.format_trading_history(self.trading_history)}"
+                ),
+                term_type="short-term",
+            )
             return True
         return False
 
-    async def check_exit_condition(self, signal):
+    async def check_exit_condition(self, symbol, signal):
         if ("long_exit" in signal) or ("short_entry" in signal):
+            # 매도 시그널
+            await send_telegram_message(
+                (
+                    f"🚀 {symbol} 매도 시그널 발생!\n\n"
+                    f"{self.format_trading_history(self.trading_history)}"
+                    "🚀"
+                ),
+                term_type="short-term",
+            )
             return True
         return False
+
+    async def check_stop_loss_condition(self, symbol, current_price):
+        if symbol in self.holding_coins:
+            stop_loss_price = self.holding_coins[symbol]["stop_loss_price"]
+            if current_price < stop_loss_price:
+                return True
+        return False
+
+    async def get_profit_percentage(self, symbol, current_price):
+        if symbol in self.holding_coins:
+            average_buy_price = self.holding_coins[symbol]["buy_price"]
+            profit_percentage = (
+                (current_price - average_buy_price) / average_buy_price * 100
+                if average_buy_price
+                else None
+            )
+            return profit_percentage
+        return None
+
+    async def get_signal(self, symbol):
+        df = self.candlestick_data[symbol]
+        signals = self.strategy.compute_signals(df)
+        signal_columns = ["long_entry", "short_entry", "long_exit", "short_exit"]
+
+        filtered_signals = signals[["timestamp"] + signal_columns]
+        filtered_signals = filtered_signals.sort_values(by="timestamp", ascending=False)
+
+        signal_status = self.strategy.determine_signal_status(
+            filtered_signals, signal_columns
+        )
+
+        signal = {
+            "ticker": symbol,
+            "status": "0000",
+            "type_latest_signal": signal_status["latest"],
+            "type_last_true_signal": signal_status["last_true"],
+            "type_last_true_timestamp": signal_status["last_true_timestamp"],
+            "data": filtered_signals.head(20).to_dict(orient="records"),
+        }
+
+        return signal
 
     async def get_available_buy_units(self, symbol):
         # 주문 가능 수량 조회
@@ -172,7 +236,7 @@ class TradingBot:
                     )
                     logger.error("Traceback: %s", traceback.format_exc())
             return {
-                "status": "success",
+                "status": "0000",
                 "message": f"Successfully buy {available_units} {symbol}",
             }
         except Exception as e:
@@ -184,6 +248,7 @@ class TradingBot:
         try:
             logger.info("Execute to sell %s", symbol)
             sell_units = await self.get_available_sell_units(symbol)
+            sell_units = float(sell_units)
 
             if amount < 1.0:
                 sell_units = round(sell_units * amount, 8)
@@ -229,7 +294,7 @@ class TradingBot:
                 logger.info("Sell Success and Holding coins: %s", self.holding_coins)
 
             return {
-                "status": "success",
+                "status": "0000",
                 "message": f"Successfully sold {sell_units} {symbol}",
             }
         except Exception as e:
@@ -400,6 +465,12 @@ class TradingBot:
                 if symbol not in self.active_symbols:
                     self.active_symbols.add(symbol)
 
+    async def remove_active_symbols(self, symbols: Optional[List[str]] = Query(None)):
+        if symbols:
+            for symbol in symbols:
+                if symbol in self.active_symbols:
+                    self.active_symbols.remove(symbol)
+
     async def add_holding_coin(self, symbol: str, units: float, buy_price: float):
         stop_loss_price = buy_price * 0.98
         self.holding_coins[symbol] = {
@@ -408,6 +479,10 @@ class TradingBot:
             "stop_loss_price": stop_loss_price,
             "order_id": None,
         }
+
+    async def remove_holding_coin(self, symbol: str):
+        if symbol in self.holding_coins:
+            self.holding_coins.pop(symbol)
 
     async def trade(self, symbol: str, timeframe: str = "1h"):
         await self.initialize_candlestick_data(symbol, timeframe)
@@ -541,7 +616,7 @@ class TradingBot:
                 "log=> Analyzing and trading %s on %s timeframe with holding coins: %s",
                 symbol,
                 timeframe,
-                list(self.trading_history.keys()),
+                list(self.holding_coins.keys()),
             )
 
             if symbol in self.in_trading_process_coins:
@@ -553,67 +628,25 @@ class TradingBot:
                 return
 
             df = self.candlestick_data[symbol]
-            signals = self.strategy.compute_signals(df)
-            signal_columns = ["long_entry", "short_entry", "long_exit", "short_exit"]
-
-            filtered_signals = signals[["timestamp"] + signal_columns]
-            filtered_signals = filtered_signals.sort_values(
-                by="timestamp", ascending=False
-            )
-
-            signal_status = self.strategy.determine_signal_status(
-                filtered_signals, signal_columns
-            )
-
-            signal = {
-                "ticker": symbol,
-                "status": "success",
-                "type_latest_signal": signal_status["latest"],
-                "type_last_true_signal": signal_status["last_true"],
-                "type_last_true_timestamp": signal_status["last_true_timestamp"],
-                "data": filtered_signals.head(20).to_dict(orient="records"),
-            }
-
+            signal = await self.get_signal(symbol)
             latest_signal = signal["type_latest_signal"]
-
-            average_buy_price = (
-                self.holding_coins[symbol]["buy_price"]
-                if symbol in self.holding_coins
-                else None
-            )
-            stop_loss_price = (
-                self.holding_coins[symbol]["stop_loss_price"]
-                if symbol in self.holding_coins
-                else None
-            )
             current_price = df.iloc[-1]["close"]
-            profit_percentage = (
-                (current_price - average_buy_price) / average_buy_price * 100
-                if average_buy_price
-                else None
-            )
+            profit_percentage = await self.get_profit_percentage(symbol, current_price)
 
             # 거래량 가중 이평을 돌파하는지, 혹은 반대로 돌파하는지 확인
             # 거래량 가중 이평을 돌파하는 경우 매수 시그널
             # 거래량 가중 이평을 돌파하지 않는 경우 매도 시그널 -> 절반 매도.
 
             # 매수
-            if await self.check_entry_condition(latest_signal):
-                # 매수 시그널
-                await send_telegram_message(
-                    (
-                        f"🚀 {symbol} 매수 시그널 발생! 🚀\n\n"
-                        f"{self.format_trading_history(self.trading_history)}"
-                    ),
-                    term_type="short-term",
-                )
-
-                if len(self.holding_coins) >= 3 and symbol in self.holding_coins:
+            if await self.check_entry_condition(symbol, latest_signal):
+                if len(self.holding_coins) >= 3 or symbol in self.holding_coins:
                     return  # 이미 3개 이상의 코인을 보유하고 있으면 추가 매수하지 않음
 
                 self.in_trading_process_coins.append(symbol)
-                if symbol in self.trading_history:
-                    self.trading_history[symbol].append(
+
+                buy_result = await self.execute_trade("buy", symbol)
+                if buy_result and buy_result["status"] == "0000":
+                    self.trading_history.setdefault(symbol, []).append(
                         {
                             "action": "buy",
                             "entry_signal": latest_signal,
@@ -621,44 +654,22 @@ class TradingBot:
                             "entry_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                         }
                     )
-                else:
-                    self.trading_history[symbol] = [
-                        {
-                            "action": "buy",
-                            "entry_signal": latest_signal,
-                            "price": current_price,
-                            "entry_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                        }
-                    ]
 
-                result = await self.execute_trade("buy", symbol)
-                if result and result["status"] == "0000":
-                    self.in_trading_process_coins.remove(symbol)
-
+                self.in_trading_process_coins.remove(symbol)
                 return
 
             # 매도
-            if await self.check_exit_condition(latest_signal) or (
-                current_price is not None
-                and stop_loss_price is not None
-                and current_price < stop_loss_price
+            if await self.check_exit_condition(symbol, latest_signal) or (
+                await self.check_stop_loss_condition(symbol, current_price)
             ):
-                # 매도 시그널
-                await send_telegram_message(
-                    (
-                        f"🚀 {symbol} 매도 시그널 발생!\n\n"
-                        f"{self.format_trading_history(self.trading_history)}"
-                        "🚀"
-                    ),
-                    term_type="short-term",
-                )
-
                 if symbol not in self.holding_coins:
                     return
 
                 self.in_trading_process_coins.append(symbol)
-                if symbol in self.trading_history:
-                    self.trading_history[symbol].append(
+
+                sell_result = await self.execute_trade("sell", symbol)
+                if sell_result and sell_result["status"] == "0000":
+                    self.trading_history.setdefault(symbol, []).append(
                         {
                             "action": "sell",
                             "exit_signal": latest_signal,
@@ -666,18 +677,6 @@ class TradingBot:
                             "exit_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                         }
                     )
-                else:
-                    self.trading_history[symbol] = [
-                        {
-                            "action": "sell",
-                            "exit_signal": latest_signal,
-                            "price": current_price,
-                            "exit_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                        }
-                    ]
-
-                result = await self.execute_trade("sell", symbol)
-                if result and result["status"] == "0000":
                     await self.disconnect(symbol)
 
                 self.in_trading_process_coins.remove(symbol)
@@ -706,12 +705,12 @@ class TradingBot:
                         }
                     ]
 
-                result = await self.execute_trade("sell", symbol, amount=0.5)
-                if result and result["status"] == "0000":
-                    await self.disconnect(symbol)
+                sell_by_profit = await self.execute_trade("sell", symbol, amount=0.5)
+                if sell_by_profit and sell_by_profit["status"] == "0000":
+                    # await self.disconnect(symbol)
+                    pass  # 일단은 일정 물량만 매도만 하고, 종목을 제거하지 않음.
 
                 self.in_trading_process_coins.remove(symbol)
-
                 return
 
             # print("log=> Trading history: ", self.trading_history)
@@ -737,56 +736,30 @@ class TradingBot:
             self.candlestick_data[symbol].set_index("timestamp", inplace=True)
 
     async def run(self, symbols: Optional[List[str]] = None, timeframe: str = "1h"):
-        trade_cadidates = []
+        # 선택된 코인들을 active_symbols 에 추가
+        selected_coins = await self.select_coin()
+        limit = 10
+        slots_available = limit - len(self.active_symbols)
+        self.active_symbols.update(selected_coins[:slots_available])
 
-        # 내 자산 조회 후에, 자산에 있는 코인들을 trade_symbols, holding_coins, active_symbols 에 추가
-        # 내 자산 조회
-        # balance = await self.bithumb_private.get_balance()
-        # for symbol, data in balance["data"].items():
-        #     if symbol != "total_krw":
-        #         coin_balance = float(data["total"])
-        #         if coin_balance > 0:
-        #             self.holding_coins[symbol] = {"units": coin_balance}
-        #             self.active_symbols.add(symbol)
-        #             trade_symbols.append(symbol)
-
+        # 관심 종목 업데이트
         if symbols:
-            trade_cadidates = symbols
-        else:
-            selected_coins = await self.select_coin()
-            trade_cadidates = selected_coins
+            self.interest_symbols.update(symbols)
 
-        # trade_symbols 에 stx 가 있으면 제거.
-        if "STX" in trade_cadidates:
-            trade_cadidates.remove("STX")
-
-        # active_symbols 에 trade_symbols 를 추가하고, 길이는 2개로 제한
-        new_symbols = [
-            symbol for symbol in trade_cadidates if symbol not in self.active_symbols
-        ]
-        slots_available = 10 - len(self.active_symbols)
-        self.active_symbols.update(new_symbols[:slots_available])
-
-        # 관심 종목이 active_symbols 에 없으면 추가
-        for symbol in self.interest_symbols:
-            if symbol not in self.active_symbols:
-                self.active_symbols.add(symbol)
+        # 관심 종목을 active_symbols 에 추가
+        self.active_symbols.update(self.interest_symbols)
 
         # trading 시작
         await send_telegram_message(
             f"🚀 Trading started with symbols:\n\n{self.active_symbols}\n\nand\n\ntimeframe: {timeframe} 🚀",
             term_type="short-term",
         )
-
         logger.info(
             "Running trading bot with symbols: %s and timeframe: %s",
             self.active_symbols,
             timeframe,
         )
 
-        # tasks = [self.trade(symbol, timeframe) for symbol in self.active_symbols]
-        # await asyncio.gather(*tasks)
-        # Task를 생성하고 running_tasks에 저장
         tasks = []
         for symbol in self.active_symbols:
             task = asyncio.create_task(self.trade(symbol, timeframe))
@@ -795,11 +768,17 @@ class TradingBot:
 
         await asyncio.gather(*tasks)
 
-    async def stop(self):
+    async def stop_all(self):
         for symbol in list(self.running_tasks.keys()):
             await self.disconnect(symbol)
         self.running_tasks.clear()
         self.active_symbols.clear()
+
+    async def stop_symbol(self, symbol: str):
+        if symbol in self.running_tasks:
+            await self.disconnect(symbol)
+            self.running_tasks.pop(symbol)
+            self.active_symbols.remove(symbol)
 
     def get_status(self):
         return {
