@@ -633,8 +633,17 @@ class TradingBot:
             interval = self.timeframe_intervals.get(
                 timeframe, timedelta(minutes=default_minutes)
             )
+
+            df = self.candlestick_data[symbol]
+            current_price = df.iloc[-1]["close"]
+            is_stop_loss = await self.check_stop_loss_condition(symbol, current_price)
+            profit_percentage = await self.get_profit_percentage(symbol, current_price)
+
             print("log=> analyze_and_trade: 진입", symbol, timeframe, interval)
-            if current_time - self.last_analysis_time[symbol] < interval:
+            if (
+                current_time - self.last_analysis_time[symbol] < interval
+                and not is_stop_loss
+            ):
                 return
 
             print("log=> analyze_and_trade: 진행", symbol, timeframe, interval)
@@ -656,11 +665,8 @@ class TradingBot:
                 logger.info("Symbol %s not found in candlestick data", symbol)
                 return
 
-            df = self.candlestick_data[symbol]
             signal = await self.get_signal(symbol)
             latest_signal = signal["type_latest_signal"]
-            current_price = df.iloc[-1]["close"]
-            profit_percentage = await self.get_profit_percentage(symbol, current_price)
 
             # 거래량 가중 이평을 돌파하는지, 혹은 반대로 돌파하는지 확인
             # 거래량 가중 이평을 돌파하는 경우 매수 시그널
@@ -694,9 +700,7 @@ class TradingBot:
                 return
 
             # 매도
-            if await self.check_exit_condition(symbol, latest_signal) or (
-                await self.check_stop_loss_condition(symbol, current_price)
-            ):
+            if await self.check_exit_condition(symbol, latest_signal) or is_stop_loss:
                 if symbol not in self.holding_coins:
                     return  # 보유한 코인이 아닌 경우 매도하지 않음
 
