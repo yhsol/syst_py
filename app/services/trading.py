@@ -300,7 +300,7 @@ class TradingBot:
                             term_type="short-term",
                         )
                 if symbol in self.holding_coins:
-                    self.holding_coins.pop(symbol)
+                    self.remove_holding_coin(symbol)
 
                 logger.info("Sell Success and Holding coins: %s", self.holding_coins)
 
@@ -537,7 +537,8 @@ class TradingBot:
             websocket = self.websocket_connections.pop(symbol)
             await websocket.close()
 
-        self.active_symbols.remove(symbol)
+        if symbol in self.active_symbols:
+            self.remove_active_symbols([symbol])
 
         if symbol in self.running_tasks:
             task = self.running_tasks.pop(symbol)
