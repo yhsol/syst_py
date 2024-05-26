@@ -1,8 +1,9 @@
 import asyncio
 import json
 import logging
+import re
 import traceback
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Set
 
 from fastapi import Query
@@ -45,8 +46,21 @@ class TradingBot:
             {}
         )  # 실행 중인 태스크를 저장할 딕셔너리
         self.websocket_connections: Dict[str, websockets.WebSocketClientProtocol] = {}
-        self.current_timeframe = "10m"
         self.available_krw_to_each_trade: float = 10000
+        self.current_timeframe = "10m"
+        self.timeframe_intervals = {
+            "1m": timedelta(minutes=1),
+            "5m": timedelta(minutes=5),
+            "10m": timedelta(minutes=10),
+            "15m": timedelta(minutes=15),
+            "30m": timedelta(minutes=30),
+            "1h": timedelta(hours=1),
+            "4h": timedelta(hours=4),
+            "6h": timedelta(hours=6),
+            "12h": timedelta(hours=12),
+            "24h": timedelta(hours=24),
+        }
+        self.last_analysis_time: Dict[str, datetime] = {}
 
     def format_trading_history(self, trading_history):
         print("log=> Trading history: ", trading_history)
@@ -609,6 +623,24 @@ class TradingBot:
         timeframe: str,
     ):
         try:
+            current_time = datetime.now()
+            match = re.match(r"(\d+)([a-zA-Z]+)", self.current_timeframe)
+            if match:
+                default_minutes = int(match.group(1))
+            else:
+                default_minutes = 10
+
+            interval = self.timeframe_intervals.get(
+                timeframe, timedelta(minutes=default_minutes)
+            )
+            print("log=> analyze_and_trade: 진입", symbol, timeframe, interval)
+            if current_time - self.last_analysis_time[symbol] < interval:
+                return
+
+            print("log=> analyze_and_trade: 진행", symbol, timeframe, interval)
+
+            self.last_analysis_time[symbol] = current_time
+
             print(
                 "log=> Analyzing and trading %s on %s timeframe with holding coins: %s",
                 symbol,
@@ -720,6 +752,7 @@ class TradingBot:
                     pass  # 일단은 일정 물량만 매도만 하고, 종목을 제거하지 않음.
 
                 self.in_trading_process_coins.remove(symbol)
+
                 return
 
             # print("log=> Trading history: ", self.trading_history)
@@ -743,6 +776,10 @@ class TradingBot:
                 self.candlestick_data[symbol]["timestamp"], unit="ms"
             )
             self.candlestick_data[symbol].set_index("timestamp", inplace=True)
+        # self.last_analysis_time[symbol] = datetime.now()
+        self.last_analysis_time[symbol] = datetime.now() - self.timeframe_intervals.get(
+            timeframe, timedelta(minutes=10)
+        )
 
     async def run(self, symbols: Optional[List[str]] = None, timeframe: str = "1h"):
         # 선택된 코인들을 active_symbols 에 추가
