@@ -1,7 +1,8 @@
 # app/api/signal.py
 from typing import List, Optional
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 
+from app.dependencies.auth import verify_api_key
 from app.services.bithumb_service import BithumbService
 from app.services.bithumb_service import BithumbPrivateService
 from app.services.stratege_service import StrategyService
@@ -22,7 +23,7 @@ trading_bot = TradingBot(
 )
 
 
-@router.get(f"{ROOT}/turtle")
+@router.get(f"{ROOT}/turtle", dependencies=[Depends(verify_api_key)])
 async def get_turtle_signals(ticker: str, interval: str = "1h"):
     result = await strategy_service.analyze_currency_by_turtle(
         ticker.upper(), chart_intervals=interval
@@ -30,7 +31,7 @@ async def get_turtle_signals(ticker: str, interval: str = "1h"):
     return result
 
 
-@router.get(f"{ROOT}/turtle/long")
+@router.get(f"{ROOT}/turtle/long", dependencies=[Depends(verify_api_key)])
 async def get_turtle_entry_signals(interval: str = "1h"):
     all_coins = await bithumb_service.get_current_price("KRW")
     filtered_by_value = await bithumb_service.filter_coins_by_value(all_coins)
@@ -49,13 +50,13 @@ async def get_turtle_entry_signals(interval: str = "1h"):
     return long_entry_coins
 
 
-@router.get(f"{ROOT}/info")
+@router.get(f"{ROOT}/info", dependencies=[Depends(verify_api_key)])
 async def get_info():
     result = await bithumb_private_service.get_account_info("STX")
     return result
 
 
-@router.get(f"{ROOT}/socket")
+@router.get(f"{ROOT}/socket", dependencies=[Depends(verify_api_key)])
 async def get_socket():
     # await bithumb_service.bithumb_ws_client(
     #     "ticker",
@@ -68,7 +69,7 @@ async def get_socket():
     await trading_bot.connect_to_websocket("BTC", "1h")
 
 
-@router.get(f"{ROOT}/trade")
+@router.get(f"{ROOT}/trade", dependencies=[Depends(verify_api_key)])
 async def trade(
     symbols: Optional[List[str]] = Query(None),
     timeframe: str = "1h",
@@ -78,11 +79,11 @@ async def trade(
     return {"status": "trading started"}
 
 
-@router.get(f"{ROOT}/select")
+@router.get(f"{ROOT}/select", dependencies=[Depends(verify_api_key)])
 async def select():
     return await trading_bot.select_coin()
 
 
-@router.get(f"{ROOT}/candlestick")
+@router.get(f"{ROOT}/candlestick", dependencies=[Depends(verify_api_key)])
 async def get_candlestick_data(ticker: str, interval: str = "1h"):
     return await bithumb_service.get_candlestick_data(ticker.upper(), "KRW", interval)

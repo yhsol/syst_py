@@ -1,11 +1,12 @@
 # app/api/trade.py
 from typing import List, Optional
-from fastapi import APIRouter, BackgroundTasks, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, Query
 
 from app.services.bithumb_service import BithumbService
 from app.services.bithumb_service import BithumbPrivateService
 from app.services.stratege_service import StrategyService
 from app.services.trading import TradingBot
+from app.dependencies.auth import verify_api_key
 
 router = APIRouter()
 ROOT = "/trade"
@@ -22,7 +23,7 @@ trading_bot = TradingBot(
 )
 
 
-@router.get(f"{ROOT}/run")
+@router.get(f"{ROOT}/run", dependencies=[Depends(verify_api_key)])
 async def runtrade(
     background_tasks: BackgroundTasks,
     symbols: Optional[List[str]] = Query(None),
@@ -38,31 +39,31 @@ async def runtrade(
     return {"status": "trading started"}
 
 
-@router.get(f"{ROOT}/stop-all")
+@router.get(f"{ROOT}/stop-all", dependencies=[Depends(verify_api_key)])
 async def stop_all():
     await trading_bot.stop_all()
     return {"status": "trading stopped"}
 
 
-@router.get(f"{ROOT}/stop-symbol")
+@router.get(f"{ROOT}/stop-symbol", dependencies=[Depends(verify_api_key)])
 async def stop_symbol(symbol: str):
     symbol = symbol.upper()
     await trading_bot.stop_symbol(symbol)
     return {"status": f"{symbol} trading stopped"}
 
 
-@router.get(f"{ROOT}/status")
+@router.get(f"{ROOT}/status", dependencies=[Depends(verify_api_key)])
 async def status():
     return trading_bot.get_status()
 
 
-@router.get(f"{ROOT}/set-available-krw")
+@router.get(f"{ROOT}/set-available-krw", dependencies=[Depends(verify_api_key)])
 async def set_available_krw(krw: float):
     trading_bot.available_krw_to_each_trade = krw
     return {"status": f"available_krw_to_each_trade is set to {krw}"}
 
 
-@router.get(f"{ROOT}/add-holding")
+@router.get(f"{ROOT}/add-holding", dependencies=[Depends(verify_api_key)])
 async def add_holding(
     background_tasks: BackgroundTasks,
     symbol: str,
@@ -84,7 +85,7 @@ async def add_holding(
     }
 
 
-@router.get(f"{ROOT}/remove-holding")
+@router.get(f"{ROOT}/remove-holding", dependencies=[Depends(verify_api_key)])
 async def remove_holding(symbol: str):
     symbol = symbol.upper()
     if symbol not in trading_bot.holding_coins:
@@ -96,7 +97,7 @@ async def remove_holding(symbol: str):
     return {"status": f"{symbol} removed from holding coins"}
 
 
-@router.get(f"{ROOT}/add-active-symbol")
+@router.get(f"{ROOT}/add-active-symbol", dependencies=[Depends(verify_api_key)])
 async def add_active_symbol(
     background_tasks: BackgroundTasks, symbols: Optional[List[str]] = Query(None)
 ):
@@ -113,7 +114,7 @@ async def add_active_symbol(
         return {"status": f"{symbol} is already in active symbols"}
 
 
-@router.get(f"{ROOT}/reselect")
+@router.get(f"{ROOT}/reselect", dependencies=[Depends(verify_api_key)])
 async def reselect(background_tasks: BackgroundTasks):
     trading_bot.active_symbols = set()
     selected_symbols = await trading_bot.select_coin()
@@ -135,7 +136,7 @@ async def reselect(background_tasks: BackgroundTasks):
     }
 
 
-@router.get(f"{ROOT}/api-test")
+@router.get(f"{ROOT}/api-test", dependencies=[Depends(verify_api_key)])
 async def apitest():
     result = "add api for test"
     return result

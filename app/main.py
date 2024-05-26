@@ -1,14 +1,17 @@
 from typing import Union
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 
 from app.api import coin_analysis, signal, trade
 
+from app.dependencies.auth import verify_api_key
+
+
 app = FastAPI()
 
-app.include_router(coin_analysis.router)
-app.include_router(signal.router)
-app.include_router(trade.router)
+app.include_router(coin_analysis.router, dependencies=[Depends(verify_api_key)])
+app.include_router(signal.router, dependencies=[Depends(verify_api_key)])
+app.include_router(trade.router, dependencies=[Depends(verify_api_key)])
 
 
 @app.get("/")
