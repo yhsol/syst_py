@@ -91,6 +91,9 @@ class TradingBot:
         }
 
     async def get_signal(self, symbol):
+        if symbol not in self.candlestick_data:
+            return None
+
         df = self.candlestick_data[symbol]
         signals = self.strategy.compute_signals(df)
         signal_columns = ["long_entry", "short_entry", "long_exit", "short_exit"]
@@ -667,16 +670,11 @@ class TradingBot:
             return
 
         self.last_analysis_time[symbol] = current_time
-
-        if symbol in self.in_trading_process_coins:
-            logger.info("Already in trading process: %s", symbol)
-            return
-
-        if symbol not in self.candlestick_data:
-            logger.info("Symbol %s not found in candlestick data", symbol)
-            return
-
         signal = await self.get_signal(symbol)
+
+        if signal is None:
+            return
+
         latest_signal = signal["type_latest_signal"]
 
         if await check_entry_condition(symbol, latest_signal, self.trading_history):
@@ -685,6 +683,9 @@ class TradingBot:
 
             if len(self.holding_coins) >= 3:
                 return  # 이미 3개 이상의 코인을 보유하고 있으면 추가 매수하지 않음
+
+            if symbol in self.in_trading_process_coins:
+                return
 
             self.in_trading_process_coins.append(symbol)
 
@@ -707,6 +708,9 @@ class TradingBot:
 
         if await check_exit_condition(symbol, latest_signal, self.trading_history):
             if symbol not in self.holding_coins:
+                return
+
+            if symbol in self.in_trading_process_coins:
                 return
 
             self.in_trading_process_coins.append(symbol)
