@@ -1,9 +1,20 @@
+# utils/trading_helpers.py
+import logging
 import math
-from typing import Literal
+import traceback
+from typing import List, Literal
 from app.services.bithumb_service import BithumbService
 from app.telegram.telegram_client import send_telegram_message, generate_message
 
 bithumb = BithumbService()
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[logging.FileHandler("trading_bot.log"), logging.StreamHandler()],
+)
+
+logger = logging.getLogger(__name__)
 
 
 async def fetch_all_candlestickdata(symbols: list, chart_intervals: str = "1h"):
@@ -228,3 +239,98 @@ async def generate_short_term_analysis_message():
 
     message = generate_message("Sustainability - Short Term", coin_groups)
     return message
+
+
+def format_trading_history(trading_history):
+    print("log=> Trading history: ", trading_history)
+    try:
+        formatted_entries = []
+        for symbol, entries in trading_history.items():
+            formatted_entries.append(f"{symbol}:")
+            for entry in entries:
+                if "action" in entry and "price" in entry:
+                    entry_str = (
+                        f"  - {entry['action'].capitalize()} at {entry['price']} on {entry['entry_time']}"
+                        if entry["action"] == "buy"
+                        else f"  - {entry['action'].capitalize()} at {entry['price']} on {entry['exit_time']}"
+                    )
+                    formatted_entries.append(entry_str)
+        print("log=> Formatted entries: ", formatted_entries)
+        return "\n".join(formatted_entries) + "\n\n"
+    except Exception as e:
+        logger.error("An error occurred while formatting trading history: %s", e)
+        logger.error("Traceback: %s", traceback.format_exc())
+        return str(trading_history)
+
+
+async def check_entry_condition(symbol, signal, trading_history):
+    if ("short_exit" in signal) or ("long_entry" in signal):
+        # 매수 시그널
+        await send_telegram_message(
+            (
+                f"🚀 {symbol} 매수 시그널 발생! 🚀\n\n"
+                f"{format_trading_history(trading_history)}"
+            ),
+            term_type="short-term",
+        )
+        return True
+    return False
+
+
+async def check_exit_condition(symbol, signal, trading_history):
+    if ("long_exit" in signal) or ("short_entry" in signal):
+        # 매도 시그널
+        await send_telegram_message(
+            (
+                f"🚀 {symbol} 매도 시그널 발생!\n\n"
+                f"{format_trading_history(trading_history)}"
+                "🚀"
+            ),
+            term_type="short-term",
+        )
+        return True
+    return False
+
+
+async def check_stop_loss_condition(symbol, current_price, holding_coins):
+    if symbol in holding_coins:
+        stop_loss_price = holding_coins[symbol]["stop_loss_price"]
+        if current_price < stop_loss_price:
+            return True
+    return False
+
+
+async def get_profit_percentage(symbol, current_price, holding_coins):
+    if symbol in holding_coins:
+        average_buy_price = holding_coins[symbol]["buy_price"]
+        profit_percentage = (
+            (current_price - average_buy_price) / average_buy_price * 100
+            if average_buy_price
+            else None
+        )
+        return float(profit_percentage)
+    return None
+
+
+async def calculate_rsi(close_prices: List[float], period: int = 14) -> float:
+    gains = [
+        close_prices[i + 1] - close_prices[i]
+        for i in range(len(close_prices) - 1)
+        if close_prices[i + 1] > close_prices[i]
+    ]
+    losses = [
+        close_prices[i] - close_prices[i + 1]
+        for i in range(len(close_prices) - 1)
+        if close_prices[i + 1] < close_prices[i]
+    ]
+    average_gain = sum(gains) / period
+    average_loss = sum(losses) / period
+    if average_loss == 0:
+        return 100
+    rs = average_gain / average_loss
+    rsi = 100 - (100 / (1 + rs))
+    return rsi
+
+
+async def calculate_moving_average(close_prices: List[float], period: int) -> float:
+    return sum(close_prices[-period:]) / period

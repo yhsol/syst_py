@@ -4,7 +4,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends
 
 from app.dependencies.auth import verify_api_key
-from app.utils.trading_utils import perform_analysis_and_notify
+from app.utils.trading_helpers import perform_analysis_and_notify
 
 
 router = APIRouter()

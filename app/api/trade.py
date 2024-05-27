@@ -123,6 +123,18 @@ async def reselect(background_tasks: BackgroundTasks):
     }
 
 
+@router.get(f"{ROOT}/set-profit-target", dependencies=[Depends(verify_api_key)])
+async def set_profit_target(
+    profit: Optional[float] = None, amount: Optional[float] = None
+):
+    await trading_bot.set_profit_target(profit, amount)
+    return {
+        "status": "profit target set successfully",
+        "profit": profit,
+        "amount": amount,
+    }
+
+
 @router.get(f"{ROOT}/api-test", dependencies=[Depends(verify_api_key)])
 async def apitest():
     result = "add api for test"
