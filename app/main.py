@@ -1,19 +1,23 @@
+import os
 from typing import Union
 
+from dotenv import load_dotenv
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import coin_analysis, signal, trade
-
 from app.dependencies.auth import verify_api_key
 
-
 app = FastAPI()
+
+load_dotenv()
+
+CLIENT_URL = os.getenv("CLIENT_URL")
 
 # CORS 설정 추가
 origins = [
     "http://localhost:3000",
-    "https://syst.vercel.app",
+    CLIENT_URL,
 ]
 
 app.add_middleware(
