@@ -786,6 +786,35 @@ class TradingBot:
             timeframe, timedelta(minutes=10)
         )
 
+    async def reselect_and_trade(self):
+        for symbol in list(self.running_tasks.keys()):
+            if symbol not in self.holding_coins:
+                await self.disconnect(symbol)
+
+        # 선택된 코인들을 active_symbols 에 추가
+        selected_coins = await self.select_coin()
+        limit = 10
+        slots_available = limit - len(self.active_symbols)
+        self.active_symbols.update(selected_coins[:slots_available])
+        self.active_symbols.update(self.interest_symbols)
+
+        # trading 시작
+        await send_telegram_message(
+            f"🚀 Trading started with reselected symbols:\n\n{self.active_symbols} 🚀",
+            term_type="short-term",
+        )
+        logger.info(
+            "Running trading bot with reselected symbols: %s", self.active_symbols
+        )
+
+        tasks = []
+        for symbol in self.active_symbols:
+            task = asyncio.create_task(self.trade(symbol))
+            self.running_tasks[symbol] = task
+            tasks.append(task)
+
+        await asyncio.gather(*tasks)
+
     async def run(self, symbols: Optional[List[str]] = None, timeframe: str = "1h"):
         # 선택된 코인들을 active_symbols 에 추가
         selected_coins = await self.select_coin()

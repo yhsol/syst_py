@@ -116,23 +116,10 @@ async def add_active_symbol(
 
 @router.get(f"{ROOT}/reselect", dependencies=[Depends(verify_api_key)])
 async def reselect(background_tasks: BackgroundTasks):
-    trading_bot.active_symbols = set()
-    selected_symbols = await trading_bot.select_coin()
-    new_symbols = [
-        symbol
-        for symbol in selected_symbols
-        if symbol not in trading_bot.active_symbols
-    ]
-    slots_available = 10 - len(trading_bot.active_symbols)
-    trading_bot.active_symbols.update(new_symbols[:slots_available])
-
-    # 새로운 심볼에 대해 trade 시작
-    for symbol in new_symbols[:slots_available]:
-        background_tasks.add_task(trading_bot.trade, symbol)
-
+    background_tasks.add_task(trading_bot.reselect_and_trade)
     return {
         "status": "active symbols refreshed and started trading",
-        "active_symbols": list(trading_bot.active_symbols),
+        "holding_coins": list(trading_bot.holding_coins),
     }
 
 
