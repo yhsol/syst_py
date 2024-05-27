@@ -69,11 +69,8 @@ async def add_holding(
     symbol: str,
     units: float,
     buy_price: float,
-    force: bool = False,
 ):
     symbol = symbol.upper()
-    if symbol in trading_bot.holding_coins and not force:
-        return {"status": f"{symbol} is already in holding coins"}
 
     await trading_bot.add_holding_coin(symbol, units, buy_price)
     await trading_bot.add_active_symbols([symbol])
