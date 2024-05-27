@@ -13,7 +13,7 @@ app = FastAPI()
 # CORS 설정 추가
 origins = [
     "http://localhost:3000",
-    "https://syst.vercel.app/",
+    "https://syst.vercel.app",
 ]
 
 app.add_middleware(
