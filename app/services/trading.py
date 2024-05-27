@@ -338,6 +338,10 @@ class TradingBot:
                             "order_id": result["order_id"],
                             "profit": 0,
                         }
+
+                        if symbol not in self.active_symbols:
+                            await self.add_active_symbols([symbol])
+
                         # 매수 체결 메시지
                         await send_telegram_message(
                             (
