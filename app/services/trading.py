@@ -47,6 +47,7 @@ class TradingBot:
         bithumb_private_service: BithumbPrivateService,
         strategy_service: StrategyService,
     ):
+        print("Trading Service initialized")
         self.bithumb = bithumb_service
         self.bithumb_private = bithumb_private_service
         self.strategy = strategy_service
