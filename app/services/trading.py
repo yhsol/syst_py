@@ -78,6 +78,7 @@ class TradingBot:
             "vwma": 0.2,  # 거래량 가중 이동 평균
             "atr": 0.1,  # 평균 진폭 범위
             "previous_day_price_change": 0.1,  # 전일 가격 변화
+            "moving_average": 0.1,  # 이동 평균
             "volume_growth_rate": 0.1,  # 거래량 증가율
         }
         self.timeframe_intervals = {
