@@ -597,6 +597,8 @@ class TradingBot:
             logger.error("Traceback: %s", traceback.format_exc())
 
     async def analyze_and_trade_by_immediate(self, symbol: str, current_price: float):
+        logger.info("Analyzing and trading for %s by immediate", symbol)
+
         is_stop_loss = await check_stop_loss_condition(
             symbol, current_price, self.holding_coins
         )
@@ -684,6 +686,8 @@ class TradingBot:
             return
 
         latest_signal = signal["type_latest_signal"]
+
+        logger.info("Latest signal for %s: %s", symbol, latest_signal)
 
         if await check_entry_condition(symbol, latest_signal, self.trading_history):
             if symbol in self.holding_coins:
