@@ -333,4 +333,46 @@ async def calculate_rsi(close_prices: List[float], period: int = 14) -> float:
 
 
 async def calculate_moving_average(close_prices: List[float], period: int) -> float:
+    if len(close_prices) < period:
+        return sum(close_prices) / len(close_prices)
     return sum(close_prices[-period:]) / period
+
+
+async def calculate_atr(data: List[List[float]], period: int = 14) -> float:
+    tr_list = []
+    for i in range(1, len(data)):
+        high = float(data[i][3])
+        low = float(data[i][4])
+        previous_close = float(data[i - 1][2])
+        tr = max(high - low, abs(high - previous_close), abs(low - previous_close))
+        tr_list.append(tr)
+    atr = sum(tr_list[-period:]) / period
+    return atr
+
+
+async def calculate_previous_day_price_change(data: List[List[float]]) -> float:
+    if len(data) < 2:
+        return 0
+    previous_open = float(data[-2][1])
+    previous_close = float(data[-2][2])
+    previous_day_price_change = (previous_close - previous_open) / previous_open * 100
+    return previous_day_price_change
+
+
+async def calculate_volume_growth_rate(
+    data: List[List[float]], short_period: int = 5, long_period: int = 20
+) -> float:
+    if len(data) < long_period:
+        return 0  # 데이터가 충분하지 않은 경우 0 반환
+
+    recent_volume = [float(candle[5]) for candle in data[-short_period:]]
+    past_volume = [float(candle[5]) for candle in data[-long_period:-short_period]]
+
+    recent_avg_volume = sum(recent_volume) / len(recent_volume)
+    past_avg_volume = sum(past_volume) / len(past_volume)
+
+    if past_avg_volume == 0:
+        return 0  # 과거 평균 거래량이 0인 경우 0 반환
+
+    volume_growth_rate = (recent_avg_volume - past_avg_volume) / past_avg_volume * 100
+    return volume_growth_rate

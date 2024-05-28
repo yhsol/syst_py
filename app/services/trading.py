@@ -14,7 +14,11 @@ from app.services.bithumb_service import BithumbPrivateService, BithumbService
 from app.services.stratege_service import StrategyService
 from app.telegram.telegram_client import send_telegram_message
 from app.utils.trading_helpers import (
+    calculate_atr,
+    calculate_moving_average,
+    calculate_previous_day_price_change,
     calculate_rsi,
+    calculate_volume_growth_rate,
     check_entry_condition,
     check_exit_condition,
     check_stop_loss_condition,
@@ -38,6 +42,8 @@ class HoldingCoin(TypedDict):
     order_id: Optional[str]
     profit: Optional[float]
     reason: Optional[str]
+    highest_price: Optional[float]
+    trailing_stop_price: Optional[float]  # 트레일링 스탑 가격
 
 
 class TradingBot:
@@ -59,11 +65,21 @@ class TradingBot:
         self.in_trading_process_coins: List = []
         self.trading_history: Dict = {}
         self.candlestick_data: Dict = {}  # 캔들스틱 데이터를 저장할 딕셔너리
-        self.weights = {"volume": 0.3, "rsi": 0.2, "price_change": 0.2, "vwma": 0.3}
         self.available_krw_to_each_trade: float = 10000
         self.profit_target = {"profit": 5, "amount": 0.5}
+        self.trailing_stop_percent = 0.02  # 예: 2% 트레일링 스탑
+        self.trailing_stop_amount = 0.5  # 이익 실현 시 매도할 양
         self.current_timeframe = "10m"
         self.last_analysis_time: Dict[str, datetime] = {}
+        self.weights = {
+            "volume": 0.2,  # 거래량
+            "rsi": 0.15,  # 상대 강도 지수
+            "price_change": 0.15,  # 가격 변화율
+            "vwma": 0.2,  # 거래량 가중 이동 평균
+            "atr": 0.1,  # 평균 진폭 범위
+            "previous_day_price_change": 0.1,  # 전일 가격 변화
+            "volume_growth_rate": 0.1,  # 거래량 증가율
+        }
         self.timeframe_intervals = {
             "1m": timedelta(minutes=1),
             "5m": timedelta(minutes=5),
@@ -119,6 +135,36 @@ class TradingBot:
 
     def set_timeframe(self, timeframe: str):
         self.current_timeframe = timeframe
+
+    def set_trailing_stop_percent(self, percent: float):
+        self.trailing_stop_percent = percent
+        return {"status": f"Trailing stop percent set to {percent*100}%"}
+
+    def set_trailing_stop_amount(self, amount: float):
+        self.trailing_stop_amount = amount
+        return {"status": f"Trailing stop amount set to {amount}"}
+
+    async def set_trailing_stop(self, symbol: str, percent: float):
+        self.trailing_stop_percent = percent
+        if symbol in self.holding_coins:
+            buy_price = self.holding_coins[symbol]["buy_price"] or 0
+
+            self.holding_coins[symbol]["highest_price"] = buy_price
+            self.holding_coins[symbol]["trailing_stop_price"] = buy_price * (
+                1 - percent
+            )
+        return {"status": f"Trailing stop set to {percent*100}% for {symbol}"}
+
+    async def update_trailing_stop(self, symbol: str, current_price: float):
+        if symbol in self.holding_coins:
+            highest_price = self.holding_coins[symbol].get("highest_price", 0) or 0
+
+            if current_price > highest_price:
+                self.holding_coins[symbol]["highest_price"] = current_price
+                self.holding_coins[symbol]["trailing_stop_price"] = current_price * (
+                    1 - self.trailing_stop_percent
+                )
+                return
 
     async def is_in_uptrend(self, symbol: str) -> bool:
         one_day_analysis = await self.strategy.analyze_currency_by_turtle(
@@ -196,6 +242,22 @@ class TradingBot:
         # VWMA와 현재 가격 비교
         above_vwma = closing_price > vwma_value
 
+        # ATR 계산
+        atr = await calculate_atr(candlestick_data["data"])
+
+        # 전일 상승폭 계산
+        previous_day_price_change = await calculate_previous_day_price_change(
+            candlestick_data["data"]
+        )
+
+        # MA 계산
+        moving_average = await calculate_moving_average(close_prices, period=20)
+
+        # 트레이딩 볼륨 증가율 계산
+        volume_growth_rate = await calculate_volume_growth_rate(
+            candlestick_data["data"]
+        )
+
         # 각 요소에 가중치를 적용하여 점수 계산
         score = (
             self.weights["volume"] * volume
@@ -203,6 +265,13 @@ class TradingBot:
             + self.weights["price_change"] * price_change
             + self.weights["vwma"]
             * (1 if above_vwma else 0)  # VWMA 위에 있으면 가중치 추가
+            + self.weights["atr"] * atr  # ATR에 대한 가중치 추가
+            + self.weights["previous_day_price_change"]
+            * previous_day_price_change  # 전일 상승폭에 대한 가중치 추가
+            + self.weights["moving_average"]
+            * moving_average  # 이동 평균에 대한 가중치 추가
+            + self.weights["volume_growth_rate"]
+            * volume_growth_rate  # 거래량 증가율에 대한 가중치 추가
         )
         return score
 
@@ -255,6 +324,8 @@ class TradingBot:
             "order_id": None,
             "profit": 0,
             "reason": "add by user",
+            "highest_price": buy_price,
+            "trailing_stop_price": buy_price * (1 - self.trailing_stop_percent),
         }
 
     async def remove_holding_coin(self, symbol: str):
@@ -340,6 +411,9 @@ class TradingBot:
                             "stop_loss_price": stop_loss_price,
                             "order_id": result["order_id"],
                             "profit": 0,
+                            "highest_price": buy_price,
+                            "trailing_stop_price": buy_price
+                            * (1 - self.trailing_stop_percent),
                         }
 
                         if symbol not in self.active_symbols:
@@ -597,24 +671,59 @@ class TradingBot:
             logger.error("Traceback: %s", traceback.format_exc())
 
     async def analyze_and_trade_by_immediate(self, symbol: str, current_price: float):
+        if symbol not in self.holding_coins:
+            return
+
         logger.info("Analyzing and trading for %s by immediate", symbol)
 
-        is_stop_loss = await check_stop_loss_condition(
-            symbol, current_price, self.holding_coins
-        )
         profit_percentage = await get_profit_percentage(
             symbol, current_price, self.holding_coins
         )
 
-        # holding_coins 에 profit 업데이트
-        if symbol in self.holding_coins:
-            self.holding_coins[symbol]["profit"] = profit_percentage
+        # update data
+        self.holding_coins[symbol]["profit"] = profit_percentage
+        await self.update_trailing_stop(symbol, current_price)
+
+        # 트레일링 스탑 가격 도달 시 매도
+        trailing_stop_price = self.holding_coins[symbol].get("trailing_stop_price") or 0
+        is_trailing_stop_condition_met = (
+            current_price <= trailing_stop_price
+            and profit_percentage > 1  # 이익이 1% 미만이라면 매도하지 않고 기다림.
+        )
+        is_stop_loss_condition_met = await check_stop_loss_condition(
+            symbol, current_price, self.holding_coins
+        )
+        is_profit_target_condition_met = profit_percentage > self.profit_target.get(
+            "profit", 5
+        )
+
+        if is_trailing_stop_condition_met:
+            if symbol in self.in_trading_process_coins:
+                return  # 이미 매도 진행 중인 경우 추가 매도하지 않음
+
+            self.in_trading_process_coins.append(symbol)
+
+            sell_result = await self.execute_trade(
+                "sell", symbol, amount=self.trailing_stop_amount, reason="trailing_stop"
+            )
+            if sell_result and sell_result["status"] == "0000":
+                self.trading_history.setdefault(symbol, []).append(
+                    {
+                        "action": "sell",
+                        "reason": "trailing_stop_condition_met",
+                        "exit_signal": "reach_trailing_stop",
+                        "price": current_price,
+                        "exit_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    }
+                )
+                await self.disconnect(symbol)
+
+            self.in_trading_process_coins.remove(symbol)
+
+            return
 
         # 손절가 도달 시 매도
-        if is_stop_loss:
-            if symbol not in self.holding_coins:
-                return  # 보유한 코인이 아닌 경우 매도하지 않음
-
+        if is_stop_loss_condition_met:
             if symbol in self.in_trading_process_coins:
                 return  # 이미 매도 진행 중인 경우 추가 매도하지 않음
 
@@ -639,10 +748,7 @@ class TradingBot:
 
         # 이익률에 따른 매도
         # profit percentage 를 계속해서 history 쌓듯이 쌓다가, 최고치보다 일정 수준 떨어졌을 때도 매도하는거 추가해야겠다.
-        if (
-            profit_percentage is not None
-            and profit_percentage > self.profit_target.get("profit", 5)
-        ):
+        if is_profit_target_condition_met:
             if symbol in self.in_trading_process_coins:
                 return  # 이미 매도 진행 중인 경우 추가 매도하지 않음
 

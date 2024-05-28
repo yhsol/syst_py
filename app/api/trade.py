@@ -23,6 +23,12 @@ trading_bot = TradingBot(
 )
 
 
+@router.get(f"{ROOT}/api-test", dependencies=[Depends(verify_api_key)])
+async def apitest():
+    result = "add api for test"
+    return result
+
+
 @router.get(f"{ROOT}/run", dependencies=[Depends(verify_api_key)])
 async def runtrade(
     background_tasks: BackgroundTasks,
@@ -150,7 +156,19 @@ def set_timeframe(timeframe: str):
     return {"status": f"current timeframe is set to {timeframe}"}
 
 
-@router.get(f"{ROOT}/api-test", dependencies=[Depends(verify_api_key)])
-async def apitest():
-    result = "add api for test"
-    return result
+@router.get(f"{ROOT}/set-trailing-stop", dependencies=[Depends(verify_api_key)])
+async def set_trailing_stop(symbol: str, trailing_stop_percent: float):
+    symbol = symbol.upper()
+    response = await trading_bot.set_trailing_stop(symbol, trailing_stop_percent)
+    return response
+
+
+@router.get(f"{ROOT}/set-trailing-stop-percent", dependencies=[Depends(verify_api_key)])
+def set_trailing_stop_percent(trailing_stop_percent: float):
+    response = trading_bot.set_trailing_stop_percent(trailing_stop_percent)
+    return response
+
+
+def set_trailing_stop_amount(trailing_stop_amount: float):
+    response = trading_bot.set_trailing_stop_amount(trailing_stop_amount)
+    return response
