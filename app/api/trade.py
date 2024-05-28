@@ -144,6 +144,12 @@ async def sell(symbol: str, amount=1.0, reason: str = "user request"):
     return {"status": f"sell {symbol} success"}
 
 
+@router.get(f"{ROOT}/set-timeframe", dependencies=[Depends(verify_api_key)])
+def set_timeframe(timeframe: str):
+    trading_bot.set_timeframe(timeframe)
+    return {"status": f"current timeframe is set to {timeframe}"}
+
+
 @router.get(f"{ROOT}/api-test", dependencies=[Depends(verify_api_key)])
 async def apitest():
     result = "add api for test"

@@ -117,6 +117,9 @@ class TradingBot:
 
         return signal
 
+    def set_timeframe(self, timeframe: str):
+        self.current_timeframe = timeframe
+
     async def is_in_uptrend(self, symbol: str) -> bool:
         one_day_analysis = await self.strategy.analyze_currency_by_turtle(
             order_currency=symbol,
@@ -806,6 +809,7 @@ class TradingBot:
         limit = 10
         slots_available = limit - len(self.active_symbols)
         self.active_symbols.update(selected_coins[:slots_available])
+        self.set_timeframe(timeframe)
 
         # 관심 종목 업데이트
         if symbols:
