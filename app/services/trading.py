@@ -178,7 +178,10 @@ class TradingBot:
         )
 
         # if not long signal, return False
-        if "long_entry" not in one_day_type_last_true_signal:
+        if (
+            "long_entry" not in one_day_type_last_true_signal
+            and "short_exit" not in one_day_type_last_true_signal
+        ):
             return False
 
         six_hour_analysis = await self.strategy.analyze_currency_by_turtle(
