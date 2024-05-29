@@ -93,6 +93,7 @@ class TradingBot:
             "12h": timedelta(hours=12),
             "24h": timedelta(hours=24),
         }
+        self.trade_coin_limmit = 30
 
     def get_status(self):
         return {
@@ -133,6 +134,10 @@ class TradingBot:
         }
 
         return signal
+
+    def set_trade_coin_limit(self, limmit: int):
+        self.trade_coin_limmit = limmit
+        return {"status": f"Trade coin limmit set to {limmit}"}
 
     def set_timeframe(self, timeframe: str):
         self.current_timeframe = timeframe
@@ -304,8 +309,7 @@ class TradingBot:
             coin_scores, key=lambda symbol: coin_scores[symbol], reverse=True
         )
 
-        selected = sorted_symbols[:10] if len(sorted_symbols) >= 10 else sorted_symbols
-        return selected
+        return sorted_symbols
 
     async def add_active_symbols(self, symbols: Optional[List[str]] = Query(None)):
         if symbols:
@@ -879,8 +883,7 @@ class TradingBot:
 
         # 선택된 코인들을 active_symbols 에 추가
         selected_coins = await self.select_coin()
-        limit = 10
-        slots_available = limit - len(self.active_symbols)
+        slots_available = self.trade_coin_limmit - len(self.active_symbols)
         self.active_symbols.update(selected_coins[:slots_available])
         self.active_symbols.update(self.interest_symbols)
 
@@ -920,8 +923,7 @@ class TradingBot:
     async def run(self, symbols: Optional[List[str]] = None, timeframe: str = "1h"):
         # 선택된 코인들을 active_symbols 에 추가
         selected_coins = await self.select_coin()
-        limit = 10
-        slots_available = limit - len(self.active_symbols)
+        slots_available = self.trade_coin_limmit - len(self.active_symbols)
         self.active_symbols.update(selected_coins[:slots_available])
         self.set_timeframe(timeframe)
 

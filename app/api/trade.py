@@ -169,6 +169,18 @@ def set_trailing_stop_percent(trailing_stop_percent: float):
     return response
 
 
+@router.get(f"{ROOT}/set-trailing-stop-amount", dependencies=[Depends(verify_api_key)])
 def set_trailing_stop_amount(trailing_stop_amount: float):
     response = trading_bot.set_trailing_stop_amount(trailing_stop_amount)
     return response
+
+
+def set_trade_coin_limit(trade_coin_limit: int):
+    response = trading_bot.set_trade_coin_limit(trade_coin_limit)
+    return response
+
+
+@router.get(f"{ROOT}/get-candlestick-data", dependencies=[Depends(verify_api_key)])
+async def get_candlestick_data(symbol: str, timeframe: str):
+    symbol = symbol.upper()
+    return await bithumb_service.get_candlestick_data(symbol, "KRW", timeframe)
