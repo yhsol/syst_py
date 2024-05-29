@@ -1,13 +1,10 @@
 import asyncio
 import json
 import logging
-import re
 import traceback
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Set, TypedDict
 
-from fastapi import Query
-import pandas as pd
 import websockets
 
 from app.services.bithumb_service import BithumbPrivateService, BithumbService
@@ -57,10 +54,10 @@ class TradingBot:
         self.bithumb = bithumb_service
         self.bithumb_private = bithumb_private_service
         self.strategy = strategy_service
+
+        self._running = False
         self.websocket_connections: Dict[str, websockets.WebSocketClientProtocol] = {}
         self.interest_symbols: Set[str] = set()
-        self.running_tasks: Dict[str, asyncio.Task] = {}
-        self.active_symbols: Set[str] = set()
         self.holding_coins: Dict[str, HoldingCoin] = {}
         self.in_trading_process_coins: List = []
         self.in_analysis_process_coins: List = []
@@ -69,7 +66,7 @@ class TradingBot:
         self.available_krw_to_each_trade: float = 10000
         self.profit_target = {"profit": 5, "amount": 0.5}
         self.trailing_stop_percent = 0.02  # 예: 2% 트레일링 스탑
-        self.trailing_stop_amount = 0.5  # 이익 실현 시 매도할 양
+        self.trailing_stop_amount = float(1)  # 이익 실현 시 매도할 양
         self.current_timeframe = "10m"
         self.last_analysis_time: Dict[str, datetime] = {}
         self.weights = {
@@ -95,46 +92,19 @@ class TradingBot:
             "24h": timedelta(hours=24),
         }
         self.trade_coin_limmit = 20
+        self.holding_coin_limmit = 5
 
     def get_status(self):
         return {
             "available_krw_to_each_trade": self.available_krw_to_each_trade,
             "current_timeframe": self.current_timeframe,
             "profit_target": self.profit_target,
-            "running_tasks": list(self.running_tasks.keys()),
-            "active_symbols": list(self.active_symbols),
             "holding_coins": self.holding_coins,
             "in_trading_process_coins": self.in_trading_process_coins,
             "websocket_connections": list(self.websocket_connections.keys()),
             "interest_symbols": list(self.interest_symbols),
             "trading_history": self.trading_history,
         }
-
-    async def get_signal(self, symbol):
-        if symbol not in self.candlestick_data:
-            return None
-
-        df = self.candlestick_data[symbol]
-        signals = self.strategy.compute_signals(df)
-        signal_columns = ["long_entry", "short_entry", "long_exit", "short_exit"]
-
-        filtered_signals = signals[["timestamp"] + signal_columns]
-        filtered_signals = filtered_signals.sort_values(by="timestamp", ascending=False)
-
-        signal_status = self.strategy.determine_signal_status(
-            filtered_signals, signal_columns
-        )
-
-        signal = {
-            "ticker": symbol,
-            "status": "0000",
-            "type_latest_signal": signal_status["latest"],
-            "type_last_true_signal": signal_status["last_true"],
-            "type_last_true_timestamp": signal_status["last_true_timestamp"],
-            "data": filtered_signals.head(20).to_dict(orient="records"),
-        }
-
-        return signal
 
     def set_trade_coin_limit(self, limmit: int):
         self.trade_coin_limmit = limmit
@@ -293,9 +263,7 @@ class TradingBot:
             candidate_symbols = filtered_by_value
 
         available_and_uptrend_symbols = [
-            symbol
-            for symbol in candidate_symbols
-            if symbol not in self.active_symbols and await self.is_in_uptrend(symbol)
+            symbol for symbol in candidate_symbols if await self.is_in_uptrend(symbol)
         ]
 
         coin_scores: Dict[str, float] = {}
@@ -309,18 +277,6 @@ class TradingBot:
 
         return sorted_symbols
 
-    async def add_active_symbols(self, symbols: Optional[List[str]] = Query(None)):
-        if symbols:
-            for symbol in symbols:
-                if symbol not in self.active_symbols:
-                    self.active_symbols.add(symbol)
-
-    async def remove_active_symbols(self, symbols: Optional[List[str]] = Query(None)):
-        if symbols:
-            for symbol in symbols:
-                if symbol in self.active_symbols:
-                    self.active_symbols.remove(symbol)
-
     async def add_holding_coin(self, symbol: str, units: float, buy_price: float):
         stop_loss_price = buy_price * 0.98
         self.holding_coins[symbol] = {
@@ -329,7 +285,7 @@ class TradingBot:
             "stop_loss_price": stop_loss_price,
             "order_id": None,
             "profit": 0,
-            "reason": "add by user",
+            "reason": "addByUser",
             "highest_price": buy_price,
             "trailing_stop_price": buy_price * (1 - self.trailing_stop_percent),
         }
@@ -379,7 +335,8 @@ class TradingBot:
         return coin_balance
 
     async def buy(self, symbol, reason=""):
-        logger.info("Execute to buy %s", symbol)
+        logger.info("Execute to buy %s by %s", symbol, reason)
+
         try:
             # 매수 주문 실행
             buy_units = await self.get_available_buy_units(symbol)
@@ -394,6 +351,22 @@ class TradingBot:
             logger.info("Buy result: %s", result)
 
             if result and result["status"] == "0000" and "order_id" in result:
+                self.holding_coins[symbol] = {
+                    "units": available_units,
+                    "reason": reason,
+                    "buy_price": 0,
+                    "stop_loss_price": 0,
+                    "order_id": result["order_id"],
+                    "profit": 0,
+                    "highest_price": 0,
+                    "trailing_stop_price": 0,
+                }
+
+                # 매수 체결 메시지
+                await send_telegram_message(
+                    (f"🟢 {symbol} 매수 체결! 🟢\n\n" f"📝 Reason: {reason}\n\n"),
+                    term_type="short-term",
+                )
                 order_detail = await self.bithumb_private.get_order_detail(
                     order_id=result["order_id"],
                     order_currency=symbol,
@@ -422,11 +395,13 @@ class TradingBot:
                             * (1 - self.trailing_stop_percent),
                         }
 
-                        # 매수 체결 메시지
+                        # 비동기적으로 소켓 연결
+                        asyncio.create_task(self.connect_to_websocket(symbol))
+                        # 매수 체결 상세 메시지
                         await send_telegram_message(
                             (
-                                f"🟢 {symbol} 매수 체결! 🟢\n\n"
-                                # f"📝 Reason: {reason}\n\n"
+                                f"🟢 {symbol} 매수 체결 상세! 🟢\n\n"
+                                f"📝 Reason: {reason}\n\n"
                                 f"💰 매수 가격: {buy_price}\n"
                                 f"📉 손절가: {stop_loss_price}\n\n"
                                 f"📊 Holding coins: {list(self.holding_coins.keys())}\n\n"
@@ -434,8 +409,6 @@ class TradingBot:
                             term_type="short-term",
                         )
 
-                        if symbol not in self.active_symbols:
-                            await self.add_active_symbols([symbol])
                         logger.info(
                             "Buy Success and Holding coins: %s", self.holding_coins
                         )
@@ -462,7 +435,7 @@ class TradingBot:
 
     async def sell(self, symbol, amount=1.0, reason=""):
         try:
-            logger.info("Execute to sell %s", symbol)
+            logger.info("Execute to sell %s by %s", symbol, reason)
             sell_units = await self.get_available_sell_units(symbol)
             sell_units = float(sell_units)
 
@@ -479,6 +452,16 @@ class TradingBot:
 
             # 매도 주문이 성공하면 holding_coins 에서 해당 코인 제거
             if result and result["status"] == "0000" and "order_id" in result:
+                if symbol in self.holding_coins:
+                    self.remove_holding_coin(symbol)
+                if symbol in self.websocket_connections:
+                    await self.disconnect_to_websocket(symbol)
+
+                await send_telegram_message(
+                    (f"🔴 {symbol} 매도 체결! 🔴\n\n" f"📝 Reason: {reason}\n\n"),
+                    term_type="short-term",
+                )
+
                 order_detail = await self.bithumb_private.get_order_detail(
                     order_id=result["order_id"],
                     order_currency=symbol,
@@ -494,19 +477,17 @@ class TradingBot:
                         contract = contracts[0]
                         current_price = float(contract.get("price", 0))
                         profit = current_price - self.holding_coins[symbol]["buy_price"]
-                        # 매도 체결 메시지
+
                         await send_telegram_message(
                             (
-                                f"🔴 {symbol} 매도 체결! 🔴\n\n"
-                                # f"📝 Reason: {reason}\n\n"
+                                f"🔴 {symbol} 매도 체결 상세! 🔴\n\n"
+                                f"📝 Reason: {reason}\n\n"
                                 f"💰 매도 가격: {current_price}\n\n"
                                 f"📈 수익: {profit}\n\n"
                                 f"📊 Holding coins: {list(self.holding_coins.keys())}\n\n"
                             ),
                             term_type="short-term",
                         )
-                if symbol in self.holding_coins:
-                    self.remove_holding_coin(symbol)
 
                 logger.info("Sell Success and Holding coins: %s", self.holding_coins)
 
@@ -519,29 +500,9 @@ class TradingBot:
             logger.error("Traceback: %s", traceback.format_exc())
             return {"status": "error", "message": str(e)}
 
-    async def execute_trade(self, action, symbol, amount=1.0, reason=""):
-        try:
-            if action == "buy":
-                # 매수 주문 실행
-                result = await self.buy(symbol, reason=reason)
-                return result
-
-            if action == "sell":
-                # 매도 주문 실행
-                result = await self.sell(symbol, amount, reason=reason)
-                return result
-
-        except Exception as e:
-            logger.error(
-                "An error occurred while executing %s on %s: %s", action, symbol, e
-            )
-            logger.error("Traceback: %s", traceback.format_exc())
-            return {"status": "error", "message": str(e)}
-
     async def connect_to_websocket(
         self,
         symbol: str,
-        timeframe: str,
     ):
         async with websockets.connect("wss://pubwss.bithumb.com/pub/ws") as websocket:
             self.websocket_connections[symbol] = websocket
@@ -554,13 +515,14 @@ class TradingBot:
             )
             await websocket.send(subscribe_message)
 
-            while symbol in self.active_symbols:
+            while symbol in self.websocket_connections:
                 try:
                     message = await websocket.recv()
                     data = json.loads(message)
                     if "content" in data:
-                        self.update_candlestick_data(symbol, data["content"])
-                        await self.analyze_and_trade(symbol, timeframe)
+                        current_price = float(data["content"]["closePrice"])
+                        print(f"Current price for {symbol}: {current_price}")
+                        await self.analyze_and_trade_by_immediate(symbol, current_price)
                 except websockets.ConnectionClosed as e:
                     logger.error("WebSocket connection closed: %s", e)
                     logger.error("Traceback: %s", traceback.format_exc())
@@ -570,111 +532,11 @@ class TradingBot:
                     logger.error("Traceback: %s", traceback.format_exc())
                 await asyncio.sleep(1)
 
-    async def disconnect(self, symbol):
+    async def disconnect_to_websocket(self, symbol):
         # WebSocket 연결 해제
         if symbol in self.websocket_connections:
             websocket = self.websocket_connections.pop(symbol)
             await websocket.close()
-
-        if symbol in self.active_symbols:
-            await self.remove_active_symbols([symbol])
-
-        if symbol in self.running_tasks:
-            task = self.running_tasks.pop(symbol)
-            task.cancel()
-            try:
-                await task
-            except asyncio.CancelledError:
-                logger.info("Task for %s has been cancelled", symbol)
-
-    async def initialize_candlestick_data(self, symbol: str, timeframe: str):
-        # 초기 캔들스틱 데이터를 조회하여 candlestick_data에 저장
-        candlestick_data = await self.bithumb.get_candlestick_data(
-            symbol, "KRW", timeframe
-        )
-        if candlestick_data["status"] == "0000":
-            self.candlestick_data[symbol] = pd.DataFrame(
-                candlestick_data["data"],
-                columns=["timestamp", "open", "close", "high", "low", "volume"],
-            )
-            self.candlestick_data[symbol]["timestamp"] = pd.to_datetime(
-                self.candlestick_data[symbol]["timestamp"], unit="ms"
-            )
-            self.candlestick_data[symbol].set_index("timestamp", inplace=True)
-        # self.last_analysis_time[symbol] = datetime.now()
-        self.last_analysis_time[symbol] = datetime.now() - self.timeframe_intervals.get(
-            timeframe, timedelta(minutes=10)
-        )
-
-    def update_candlestick_data(self, symbol: str, content: dict):
-        """
-        실시간 데이터를 받아와서 캔들스틱 데이터를 업데이트
-        content 데이터 예시:
-        {
-            'symbol': 'BTC_KRW',
-            'tickType': '1M',
-            'date': '20230519',
-            'time': '123456',
-            'openPrice': '50000',
-            'closePrice': '51000',
-            'lowPrice': '49500',
-            'highPrice': '51500',
-            'value': '0.1234'
-        }
-        """
-        try:
-            # 필요한 데이터 추출
-            timestamp = datetime.strptime(
-                content["date"] + content["time"], "%Y%m%d%H%M%S"
-            )
-            open_price = float(content["openPrice"])
-            close_price = float(content["closePrice"])
-            low_price = float(content["lowPrice"])
-            high_price = float(content["highPrice"])
-            volume = float(content["value"])
-
-            # 타임프레임에 따라 기존 캔들 업데이트 또는 새로운 캔들 생성
-            if symbol not in self.candlestick_data:
-                self.candlestick_data[symbol] = pd.DataFrame(
-                    columns=["timestamp", "open", "close", "high", "low", "volume"]
-                )
-
-            df = self.candlestick_data[symbol]
-
-            # Ensure 'timestamp' is a datetime object
-            if not df.empty:
-                if df.index.name == "timestamp":
-                    df = df.reset_index()  # 인덱스를 열로 변환
-                if isinstance(df.iloc[-1]["timestamp"], str):
-                    df["timestamp"] = pd.to_datetime(df["timestamp"])
-
-            # 타임프레임에 맞춰 새로운 캔들을 생성
-            if not df.empty and df.iloc[-1]["timestamp"] == timestamp:
-                # 같은 분의 데이터는 마지막 캔들 업데이트
-                df.at[df.index[-1], "close"] = close_price
-                df.at[df.index[-1], "high"] = max(df.iloc[-1]["high"], high_price)
-                df.at[df.index[-1], "low"] = min(df.iloc[-1]["low"], low_price)
-                df.at[df.index[-1], "volume"] += volume
-            else:
-                # 새로운 캔들 생성
-                new_candle = pd.DataFrame(
-                    [
-                        {
-                            "timestamp": timestamp,
-                            "open": open_price,
-                            "close": close_price,
-                            "high": high_price,
-                            "low": low_price,
-                            "volume": volume,
-                        }
-                    ]
-                )
-                self.candlestick_data[symbol] = pd.concat(
-                    [df, new_candle], ignore_index=True
-                )
-        except Exception as e:
-            logger.error("An error occurred while updating candlestick data: %s", e)
-            logger.error("Traceback: %s", traceback.format_exc())
 
     async def analyze_and_trade_by_immediate(self, symbol: str, current_price: float):
         if symbol not in self.holding_coins:
@@ -709,20 +571,19 @@ class TradingBot:
 
             self.in_trading_process_coins.append(symbol)
 
-            sell_result = await self.execute_trade(
-                "sell", symbol, amount=self.trailing_stop_amount, reason="trailing_stop"
+            sell_result = await self.sell(
+                symbol, amount=self.trailing_stop_amount, reason="trailingStop"
             )
             if sell_result and sell_result["status"] == "0000":
                 self.trading_history.setdefault(symbol, []).append(
                     {
                         "action": "sell",
-                        "reason": "trailing_stop_condition_met",
+                        "reason": "tradingStopConditionMet",
                         "exit_signal": "reach_trailing_stop",
                         "price": current_price,
                         "exit_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     }
                 )
-                await self.disconnect(symbol)
 
             self.in_trading_process_coins.remove(symbol)
 
@@ -735,18 +596,17 @@ class TradingBot:
 
             self.in_trading_process_coins.append(symbol)
 
-            sell_result = await self.execute_trade("sell", symbol, reason="stop_loss")
+            sell_result = await self.sell(symbol, reason="stopLoss")
             if sell_result and sell_result["status"] == "0000":
                 self.trading_history.setdefault(symbol, []).append(
                     {
                         "action": "sell",
-                        "reason": "stop_loss_condition_met",
+                        "reason": "stopLossConditionMet",
                         "exit_signal": "reach_stop_loss",
                         "price": current_price,
                         "exit_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     }
                 )
-                await self.disconnect(symbol)
 
             self.in_trading_process_coins.remove(symbol)
 
@@ -760,17 +620,16 @@ class TradingBot:
 
             self.in_trading_process_coins.append(symbol)
 
-            sell_by_profit = await self.execute_trade(
-                "sell",
+            sell_result = await self.sell(
                 symbol,
-                amount=self.profit_target.get("amount", 0.5),
-                reason="profit_target",
+                amount=self.profit_target.get("amount", self.profit_target["amount"]),
+                reason="profitTarget",
             )
-            if sell_by_profit and sell_by_profit["status"] == "0000":
+            if sell_result and sell_result["status"] == "0000":
                 self.trading_history.setdefault(symbol, []).append(
                     {
                         "action": "sell",
-                        "reason": "profit_target_condition_met",
+                        "reason": "profitTargetConditionMet",
                         "exit_signal": "reach_profit",
                         "price": current_price,
                         "exit_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -782,174 +641,95 @@ class TradingBot:
             return
 
     async def analyze_and_trade_by_interval(
-        self, symbol: str, timeframe: str, current_price: float
+        self, symbols: Optional[List[str]] = None, timeframe: str = "1h"
     ):
-        current_time = datetime.now()
-        interval = self.timeframe_intervals.get(timeframe, timedelta(minutes=10))
-
-        # 일정 시간 간격으로 분석을 진행하기 위한 로직
-        if current_time - self.last_analysis_time[symbol] < interval:
-            return
-
-        self.last_analysis_time[symbol] = current_time
-        signal = await self.get_signal(symbol)
-
-        if signal is None:
-            return
-
-        latest_signal = signal["type_latest_signal"]
-
-        logger.info("Latest signal for %s: %s", symbol, latest_signal)
-
-        if await check_entry_condition(symbol, latest_signal, self.trading_history):
-            if symbol in self.holding_coins:
-                return  # 이미 보유한 코인인 경우 추가 매수하지 않음
-
-            if len(self.holding_coins) >= 3:
-                return  # 이미 3개 이상의 코인을 보유하고 있으면 추가 매수하지 않음
-
-            if symbol in self.in_trading_process_coins:
-                return
-
-            self.in_trading_process_coins.append(symbol)
-
-            buy_result = await self.execute_trade(
-                "buy", symbol, reason="entry_signal_condition_met"
-            )
-            if buy_result and buy_result["status"] == "0000":
-                self.trading_history.setdefault(symbol, []).append(
-                    {
-                        "action": "buy",
-                        "reason": "entry_signal_condition_met",
-                        "entry_signal": latest_signal,
-                        "price": current_price,
-                        "entry_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    }
-                )
-
-            self.in_trading_process_coins.remove(symbol)
-            return
-
-        if await check_exit_condition(symbol, latest_signal, self.trading_history):
-            if symbol not in self.holding_coins:
-                return
-
-            if symbol in self.in_trading_process_coins:
-                return
-
-            self.in_trading_process_coins.append(symbol)
-
-            sell_result = await self.execute_trade(
-                "sell", symbol, reason="exit_signal_condition_met"
-            )
-            if sell_result and sell_result["status"] == "0000":
-                self.trading_history.setdefault(symbol, []).append(
-                    {
-                        "action": "sell",
-                        "reason": "exit_signal_condition_met",
-                        "exit_signal": latest_signal,
-                        "price": current_price,
-                        "exit_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    }
-                )
-                await self.disconnect(symbol)
-
-            self.in_trading_process_coins.remove(symbol)
-            return
-
-    async def analyze_and_trade(
-        self,
-        symbol: str,
-        timeframe: str,
-    ):
-        try:
-            df = self.candlestick_data[symbol]
-            current_price = df.iloc[-1]["close"]
-
-            await self.analyze_and_trade_by_immediate(symbol, current_price)
-            await self.analyze_and_trade_by_interval(symbol, timeframe, current_price)
-        except Exception as e:
-            logger.error("An error occurred while analyzing and trading: %s", e)
-            logger.error("Traceback: %s", traceback.format_exc())
-            if symbol in self.in_trading_process_coins:
-                self.in_trading_process_coins.remove(symbol)
-
-    async def reselect_and_trade(self):
-        for symbol in list(self.running_tasks.keys()):
-            if symbol not in self.holding_coins:
-                await self.disconnect(symbol)
-
-        # 선택된 코인들을 active_symbols 에 추가
-        selected_coins = await self.select_coin()
-        slots_available = self.trade_coin_limmit - len(self.active_symbols)
-        self.active_symbols.update(selected_coins[:slots_available])
-        self.active_symbols.update(self.interest_symbols)
-
-        # trading 시작
-        await send_telegram_message(
-            f"🚀 Trading started with reselected symbols:\n\n{self.active_symbols} 🚀",
-            term_type="short-term",
-        )
-        logger.info(
-            "Running trading bot with reselected symbols: %s", self.active_symbols
-        )
-
-        tasks = []
-        for symbol in self.active_symbols:
-            task = asyncio.create_task(self.trade(symbol))
-            self.running_tasks[symbol] = task
-            tasks.append(task)
-
-        await asyncio.gather(*tasks)
-
-    async def trade(self, symbol: str, timeframe: str = "1h"):
-        await self.initialize_candlestick_data(symbol, timeframe)
-        await self.connect_to_websocket(symbol, timeframe)
-
-    async def stop_all(self):
-        for symbol in list(self.running_tasks.keys()):
-            await self.disconnect(symbol)
-        self.running_tasks.clear()
-        self.active_symbols.clear()
-
-    async def stop_symbol(self, symbol: str):
-        if symbol in self.running_tasks:
-            await self.disconnect(symbol)
-            self.running_tasks.pop(symbol)
-            self.active_symbols.remove(symbol)
-
-    async def run(self, symbols: Optional[List[str]] = None, timeframe: str = "1h"):
-        # 선택된 코인들을 active_symbols 에 추가
-        selected_coins = await self.select_coin()
-        slots_available = self.trade_coin_limmit - len(self.active_symbols)
-        self.active_symbols.update(selected_coins[:slots_available])
         self.set_timeframe(timeframe)
+
+        selected_coins = await self.select_coin()
+        selected_coins_set = set(selected_coins)
 
         # 관심 종목 업데이트
         if symbols:
             self.interest_symbols.update(symbols)
 
-        # 관심 종목을 active_symbols 에 추가
-        self.active_symbols.update(self.interest_symbols)
+        # 추가되어야 하는 코인들을 추가
+        selected_coins_set.update(self.interest_symbols)
+        selected_coins_set.update(self.holding_coins.keys())
 
         # trading 시작
         await send_telegram_message(
-            f"🚀 Trading started with symbols:\n\n{self.active_symbols}\n\nand\n\ntimeframe: {timeframe} 🚀",
+            (
+                f"🚀 Analyze and Trade with 🚀"
+                f"\n\nSymbols: {len(selected_coins_set)} and timeframe: {timeframe}"
+                f"\n\n📊 Holding coins: {list(self.holding_coins.keys())}"
+                f"\n\n🔗 WebSocket connections: {list(self.websocket_connections.keys())}"
+            ),
             term_type="short-term",
         )
         logger.info(
             "Running trading bot with symbols: %s and timeframe: %s",
-            self.active_symbols,
+            selected_coins_set,
             timeframe,
         )
 
-        tasks = []
-        for symbol in self.active_symbols:
-            task = asyncio.create_task(self.trade(symbol, timeframe))
-            self.running_tasks[symbol] = task
-            tasks.append(task)
+        for symbol in selected_coins_set:
+            analysis = await self.strategy.analyze_currency_by_turtle(
+                order_currency=symbol,
+                payment_currency="KRW",
+                chart_intervals=self.current_timeframe,
+            )
+            latest_signal = analysis.get("type_latest_signal", "")
 
-        await asyncio.gather(*tasks)
+            if await check_entry_condition(symbol, latest_signal, self.trading_history):
+                if symbol in self.holding_coins:
+                    continue  # 이미 보유한 코인인 경우 추가 매수하지 않음
+
+                if len(self.holding_coins) >= self.holding_coin_limmit:
+                    continue  # 이미 holing coin limit 이상의 코인을 보유하고 있으면 추가 매수하지 않음
+
+                if symbol in self.in_trading_process_coins:
+                    continue
+
+                self.in_trading_process_coins.append(symbol)
+
+                buy_result = await self.buy(symbol, reason="entrySignalConditionMet")
+                if buy_result and buy_result["status"] == "0000":
+                    pass
+
+                self.in_trading_process_coins.remove(symbol)
+
+            if await check_exit_condition(symbol, latest_signal, self.trading_history):
+                if symbol not in self.holding_coins:
+                    continue
+
+                if symbol in self.in_trading_process_coins:
+                    continue
+
+                self.in_trading_process_coins.append(symbol)
+
+                sell_result = await self.sell(symbol, reason="eixtSignalConditionMet")
+                if sell_result and sell_result["status"] == "0000":
+                    pass
+
+                self.in_trading_process_coins.remove(symbol)
+
+    async def stop_all(self):
+        self._running = False
+
+    async def run(self, symbols: Optional[List[str]] = None, timeframe: str = "1h"):
+        self._running = True
+        self.set_timeframe(timeframe)
+
+        while self._running:
+            await send_telegram_message(
+                "🚀 Trading bot started by interval.", term_type="short-term"
+            )
+            await self.analyze_and_trade_by_interval(symbols, timeframe)
+            interval = self.timeframe_intervals.get(timeframe, timedelta(minutes=1))
+            await asyncio.sleep(interval.total_seconds())
+
+        logger.info("Trading bot stopped.")
+        await send_telegram_message("⛔️ Trading bot stopped.", term_type="short-term")
 
 
 # trading history 에 best profit 을 추가해서, best profit 이후에 일정 수준 떨어지면 일정 물량 매도하는 로직 추가.

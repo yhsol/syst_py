@@ -66,7 +66,7 @@ async def get_socket():
     #     ],
     #     ["30M"],
     # )
-    await trading_bot.connect_to_websocket("BTC", "1h")
+    await trading_bot.connect_to_websocket("BTC")
 
 
 @router.get(f"{ROOT}/trade", dependencies=[Depends(verify_api_key)])

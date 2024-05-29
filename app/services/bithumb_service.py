@@ -1,6 +1,8 @@
 from cmath import isnan
 import json
+import logging
 import os
+import traceback
 
 import httpx
 import websockets
@@ -9,6 +11,15 @@ from dotenv import load_dotenv
 from app.lib.bithumb_auth_header.xcoin_api_client import XCoinAPI
 
 load_dotenv()
+
+# Logging 설정
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[logging.FileHandler("trading_bot.log"), logging.StreamHandler()],
+)
+
+logger = logging.getLogger(__name__)
 
 BASE_URL = "https://api.bithumb.com"
 
@@ -45,11 +56,20 @@ class BithumbService:
                 }
 
         """
-        url = f"{BASE_URL}/public/ticker/ALL_{payment_currency}"
-        headers = {"accept": "application/json"}
-        async with httpx.AsyncClient() as client:
-            response = await client.get(url, headers=headers)
-            return response.json()
+        try:
+            url = f"{BASE_URL}/public/ticker/ALL_{payment_currency}"
+            headers = {"accept": "application/json"}
+            async with httpx.AsyncClient() as client:
+                response = await client.get(url, headers=headers)
+                return response.json()
+        except httpx.RequestError as error:
+            logger.error("❌ HTTP request error: %s", error)
+            logger.error("Traceback: %s", traceback.format_exc())
+            return {"status": "error", "message": str(error)}
+        except httpx.HTTPStatusError as error:
+            logger.error("❌ HTTP status error: %s", error)
+            logger.error("Traceback: %s", traceback.format_exc())
+            return {"status": "error", "message": str(error)}
 
     # 현재가 정보 조회 (자산별)
     async def get_current_price_by_asset(
@@ -82,11 +102,20 @@ class BithumbService:
                 }
 
         """
-        url = f"{BASE_URL}/public/ticker/{order_currency}_{payment_currency}"
-        headers = {"accept": "application/json"}
-        async with httpx.AsyncClient() as client:
-            response = await client.get(url, headers=headers)
-            return response.json()
+        try:
+            url = f"{BASE_URL}/public/ticker/{order_currency}_{payment_currency}"
+            headers = {"accept": "application/json"}
+            async with httpx.AsyncClient() as client:
+                response = await client.get(url, headers=headers)
+                return response.json()
+        except httpx.RequestError as error:
+            logger.error("❌ HTTP request error: %s", error)
+            logger.error("Traceback: %s", traceback.format_exc())
+            return {"status": "error", "message": str(error)}
+        except httpx.HTTPStatusError as error:
+            logger.error("❌ HTTP status error: %s", error)
+            logger.error("Traceback: %s", traceback.format_exc())
+            return {"status": "error", "message": str(error)}
 
     # 호가 정보 조회 (ALL)
     async def get_orderbook_all(
@@ -128,16 +157,25 @@ class BithumbService:
                 }
 
         """
-        url = f"{BASE_URL}/public/orderbook/ALL_{payment_currency}"
-        # params = {"count": count}
-        headers = {"accept": "application/json"}
-        async with httpx.AsyncClient() as client:
-            response = await client.get(
-                url,
-                # params=params,
-                headers=headers,
-            )
-            return response.json()
+        try:
+            url = f"{BASE_URL}/public/orderbook/ALL_{payment_currency}"
+            # params = {"count": count}
+            headers = {"accept": "application/json"}
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    url,
+                    # params=params,
+                    headers=headers,
+                )
+                return response.json()
+        except httpx.RequestError as error:
+            logger.error("❌ HTTP request error: %s", error)
+            logger.error("Traceback: %s", traceback.format_exc())
+            return {"status": "error", "message": str(error)}
+        except httpx.HTTPStatusError as error:
+            logger.error("❌ HTTP status error: %s", error)
+            logger.error("Traceback: %s", traceback.format_exc())
+            return {"status": "error", "message": str(error)}
 
     # 호가 정보 조회 (자산별)
     async def get_orderbook(
@@ -181,12 +219,21 @@ class BithumbService:
                 }
 
         """
-        url = f"{BASE_URL}/public/orderbook/{order_currency}_{payment_currency}"
-        params = {"count": count}
-        headers = {"accept": "application/json"}
-        async with httpx.AsyncClient() as client:
-            response = await client.get(url, params=params, headers=headers)
-            return response.json()
+        try:
+            url = f"{BASE_URL}/public/orderbook/{order_currency}_{payment_currency}"
+            params = {"count": count}
+            headers = {"accept": "application/json"}
+            async with httpx.AsyncClient() as client:
+                response = await client.get(url, params=params, headers=headers)
+                return response.json()
+        except httpx.RequestError as error:
+            logger.error("❌ HTTP request error: %s", error)
+            logger.error("Traceback: %s", traceback.format_exc())
+            return {"status": "error", "message": str(error)}
+        except httpx.HTTPStatusError as error:
+            logger.error("❌ HTTP status error: %s", error)
+            logger.error("Traceback: %s", traceback.format_exc())
+            return {"status": "error", "message": str(error)}
 
     # 최근 체결 내역
     async def get_transaction_history(
@@ -216,14 +263,21 @@ class BithumbService:
                 }
 
         """
-        url = (
-            f"{BASE_URL}/public/transaction_history/{order_currency}_{payment_currency}"
-        )
-        params = {"count": count}
-        headers = {"accept": "application/json"}
-        async with httpx.AsyncClient() as client:
-            response = await client.get(url, params=params, headers=headers)
-            return response.json()
+        try:
+            url = f"{BASE_URL}/public/transaction_history/{order_currency}_{payment_currency}"
+            params = {"count": count}
+            headers = {"accept": "application/json"}
+            async with httpx.AsyncClient() as client:
+                response = await client.get(url, params=params, headers=headers)
+                return response.json()
+        except httpx.RequestError as error:
+            logger.error("❌ HTTP request error: %s", error)
+            logger.error("Traceback: %s", traceback.format_exc())
+            return {"status": "error", "message": str(error)}
+        except httpx.HTTPStatusError as error:
+            logger.error("❌ HTTP status error: %s", error)
+            logger.error("Traceback: %s", traceback.format_exc())
+            return {"status": "error", "message": str(error)}
 
     # 네트워크 정보 조회
     async def get_network_info(self):
@@ -240,11 +294,20 @@ class BithumbService:
                 }
 
         """
-        url = f"{BASE_URL}/public/network-info"
-        headers = {"accept": "application/json"}
-        async with httpx.AsyncClient() as client:
-            response = await client.get(url, headers=headers)
-            return response.json()
+        try:
+            url = f"{BASE_URL}/public/network-info"
+            headers = {"accept": "application/json"}
+            async with httpx.AsyncClient() as client:
+                response = await client.get(url, headers=headers)
+                return response.json()
+        except httpx.RequestError as error:
+            logger.error("❌ HTTP request error: %s", error)
+            logger.error("Traceback: %s", traceback.format_exc())
+            return {"status": "error", "message": str(error)}
+        except httpx.HTTPStatusError as error:
+            logger.error("❌ HTTP status error: %s", error)
+            logger.error("Traceback: %s", traceback.format_exc())
+            return {"status": "error", "message": str(error)}
 
     # 입/출금 지원 현황 조회
     async def get_assets_status(self, currency: str):
@@ -266,11 +329,20 @@ class BithumbService:
                 }
 
         """
-        url = f"{BASE_URL}/public/assetsstatus/multichain/{currency}"
-        headers = {"accept": "application/json"}
-        async with httpx.AsyncClient() as client:
-            response = await client.get(url, headers=headers)
-            return response.json()
+        try:
+            url = f"{BASE_URL}/public/assetsstatus/multichain/{currency}"
+            headers = {"accept": "application/json"}
+            async with httpx.AsyncClient() as client:
+                response = await client.get(url, headers=headers)
+                return response.json()
+        except httpx.RequestError as error:
+            logger.error("❌ HTTP request error: %s", error)
+            logger.error("Traceback: %s", traceback.format_exc())
+            return {"status": "error", "message": str(error)}
+        except httpx.HTTPStatusError as error:
+            logger.error("❌ HTTP status error: %s", error)
+            logger.error("Traceback: %s", traceback.format_exc())
+            return {"status": "error", "message": str(error)}
 
     # 코인 출금 최소 수량 조회
     async def get_minimum_withdrawal(self, currency: str):
@@ -291,11 +363,20 @@ class BithumbService:
                 }
 
         """
-        url = f"{BASE_URL}/public/withdraw/minimum/{currency}"
-        headers = {"accept": "application/json"}
-        async with httpx.AsyncClient() as client:
-            response = await client.get(url, headers=headers)
-            return response.json()
+        try:
+            url = f"{BASE_URL}/public/withdraw/minimum/{currency}"
+            headers = {"accept": "application/json"}
+            async with httpx.AsyncClient() as client:
+                response = await client.get(url, headers=headers)
+                return response.json()
+        except httpx.RequestError as error:
+            logger.error("❌ HTTP request error: %s", error)
+            logger.error("Traceback: %s", traceback.format_exc())
+            return {"status": "error", "message": str(error)}
+        except httpx.HTTPStatusError as error:
+            logger.error("❌ HTTP status error: %s", error)
+            logger.error("Traceback: %s", traceback.format_exc())
+            return {"status": "error", "message": str(error)}
 
     # 캔들스틱 정보 조회
     async def get_candlestick_data(
@@ -327,34 +408,47 @@ class BithumbService:
                     ]
                 }
         """
-        url = f"{BASE_URL}/public/candlestick/{order_currency}_{payment_currency}/{chart_intervals}"
-        headers = {"accept": "application/json"}
-        async with httpx.AsyncClient() as client:
-            response = await client.get(url, headers=headers)
-            return response.json()
+        try:
+            url = f"{BASE_URL}/public/candlestick/{order_currency}_{payment_currency}/{chart_intervals}"
+            headers = {"accept": "application/json"}
+            async with httpx.AsyncClient() as client:
+                response = await client.get(url, headers=headers)
+                return response.json()
+        except httpx.RequestError as error:
+            logger.error("❌ HTTP request error: %s", error)
+            logger.error("Traceback: %s", traceback.format_exc())
+            return {"status": "error", "message": str(error)}
+        except httpx.HTTPStatusError as error:
+            logger.error("❌ HTTP status error: %s", error)
+            logger.error("Traceback: %s", traceback.format_exc())
+            return {"status": "error", "message": str(error)}
 
     async def bithumb_ws_client(self, subscribe_type, symbols, tick_types=None):
-        uri = "wss://pubwss.bithumb.com/pub/ws"
+        try:
+            uri = "wss://pubwss.bithumb.com/pub/ws"
 
-        # 동적 구독 요청 메시지 생성
-        subscribe_message = {"type": subscribe_type, "symbols": symbols}
+            # 동적 구독 요청 메시지 생성
+            subscribe_message = {"type": subscribe_type, "symbols": symbols}
 
-        # tick_types가 제공되는 경우 메시지에 추가
-        if tick_types:
-            subscribe_message["tickTypes"] = tick_types
+            # tick_types가 제공되는 경우 메시지에 추가
+            if tick_types:
+                subscribe_message["tickTypes"] = tick_types
 
-        async with websockets.connect(uri) as websocket:
-            # 구독 요청 메시지 전송
-            await websocket.send(json.dumps(subscribe_message))
-            print(
-                f"bithumb_ws_client: Subscribed to {subscribe_type} for {symbols} with tick types {tick_types}"
-            )
+            async with websockets.connect(uri) as websocket:
+                # 구독 요청 메시지 전송
+                await websocket.send(json.dumps(subscribe_message))
+                print(
+                    f"bithumb_ws_client: Subscribed to {subscribe_type} for {symbols} with tick types {tick_types}"
+                )
 
-            # 서버로부터 메시지 수신 및 출력
-            while True:
-                message = await websocket.recv()
-                message_data = json.loads(message)
-                print(f"bithumb_ws_client: Received message: {message_data}")
+                # 서버로부터 메시지 수신 및 출력
+                while True:
+                    message = await websocket.recv()
+                    message_data = json.loads(message)
+                    print(f"bithumb_ws_client: Received message: {message_data}")
+        except Exception as e:
+            logger.error("❌ Error in Bithumb WebSocket client: %s", e)
+            logger.error("Traceback: %s", traceback.format_exc())
 
     async def filter_coins_by_value(self, coins_data: dict, limit: int = 100):
         """
@@ -400,36 +494,41 @@ class BithumbService:
         Returns:
             list: A list of symbols of the top N coins sorted by 24-hour trading value.
         """
-        if coins_data["status"] != "0000":
-            return []  # Return an empty list if the request was not successful
+        try:
+            if coins_data["status"] != "0000":
+                return []  # Return an empty list if the request was not successful
 
-        # Extract and sort the coins by their 24-hour trading value
-        coins = [
-            {
-                "symbol": key,
-                "trade_volume": float(value["units_traded_24H"]),
-                "trade_value": float(value["acc_trade_value_24H"]),
-                "data": value,
-            }
-            for key, value in coins_data["data"].items()
-            if key != "date"
-            and value["units_traded_24H"]
-            and value["acc_trade_value_24H"]
-        ]
+            # Extract and sort the coins by their 24-hour trading value
+            coins = [
+                {
+                    "symbol": key,
+                    "trade_volume": float(value["units_traded_24H"]),
+                    "trade_value": float(value["acc_trade_value_24H"]),
+                    "data": value,
+                }
+                for key, value in coins_data["data"].items()
+                if key != "date"
+                and value["units_traded_24H"]
+                and value["acc_trade_value_24H"]
+            ]
 
-        # Filter out coins with invalid trade volume or value
-        valid_coins = [
-            coin
-            for coin in coins
-            if not (isnan(coin["trade_volume"]) or isnan(coin["trade_value"]))
-        ]
+            # Filter out coins with invalid trade volume or value
+            valid_coins = [
+                coin
+                for coin in coins
+                if not (isnan(coin["trade_volume"]) or isnan(coin["trade_value"]))
+            ]
 
-        # Sort by trade value and get the top N coins
-        sorted_by_value = sorted(
-            valid_coins, key=lambda coin: coin["trade_value"], reverse=True
-        )[:limit]
+            # Sort by trade value and get the top N coins
+            sorted_by_value = sorted(
+                valid_coins, key=lambda coin: coin["trade_value"], reverse=True
+            )[:limit]
 
-        return [coin["symbol"] for coin in sorted_by_value]
+            return [coin["symbol"] for coin in sorted_by_value]
+        except Exception as e:
+            logger.error("❌ Error while filtering coins by value: %s", e)
+            logger.error("Traceback: %s", traceback.format_exc())
+            return []
 
 
 class BithumbPrivateService:
@@ -482,13 +581,18 @@ class BithumbPrivateService:
         #     response = await client.post(url, headers=headers, data=data)
         #     return response.json()
         # result = await api.xcoin_api_call(rgParams["endpoint"], rgParams)
-        params = {
-            "endpoint": "/info/account",
-            "order_currency": order_currency,
-            "payment_currency": payment_currency,
-        }
-        result = await self.auth_api.xcoin_api_call(params["endpoint"], params)
-        return result
+        try:
+            params = {
+                "endpoint": "/info/account",
+                "order_currency": order_currency,
+                "payment_currency": payment_currency,
+            }
+            result = await self.auth_api.xcoin_api_call(params["endpoint"], params)
+            return result
+        except Exception as e:
+            logger.error("❌ Error while fetching account information: %s", e)
+            logger.error("Traceback: %s", traceback.format_exc())
+            return {"status": "error", "message": str(e)}
 
     # 보유자산 조회
     async def get_balance(self, currency: str = "BTC"):
@@ -527,12 +631,17 @@ class BithumbPrivateService:
         # async with httpx.AsyncClient() as client:
         #     response = await client.post(url, data=data, headers=headers)
         #     return response.json()
-        params = {
-            "endpoint": "/info/balance",
-            "currency": currency,
-        }
-        result = await self.auth_api.xcoin_api_call(params["endpoint"], params)
-        return result
+        try:
+            params = {
+                "endpoint": "/info/balance",
+                "currency": currency,
+            }
+            result = await self.auth_api.xcoin_api_call(params["endpoint"], params)
+            return result
+        except Exception as e:
+            logger.error("❌ Error while fetching account balance: %s", e)
+            logger.error("Traceback: %s", traceback.format_exc())
+            return {"status": "error", "message": str(e)}
 
     # 입금 주소 조회
     async def get_wallet_address(
@@ -570,13 +679,18 @@ class BithumbPrivateService:
         # async with httpx.AsyncClient() as client:
         #     response = await client.post(url, data=data, headers=headers)
         #     return response.json()
-        params = {
-            "endpoint": "/info/wallet_address",
-            "currency": currency,
-            "net_type": net_type,
-        }
-        result = await self.auth_api.xcoin_api_call(params["endpoint"], params)
-        return result
+        try:
+            params = {
+                "endpoint": "/info/wallet_address",
+                "currency": currency,
+                "net_type": net_type,
+            }
+            result = await self.auth_api.xcoin_api_call(params["endpoint"], params)
+            return result
+        except Exception as e:
+            logger.error("❌ Error while fetching wallet address: %s", e)
+            logger.error("Traceback: %s", traceback.format_exc())
+            return {"status": "error", "message": str(e)}
 
     # 최근 거래정보 조회
     async def get_recent_transaction_info(
@@ -628,13 +742,20 @@ class BithumbPrivateService:
         # async with httpx.AsyncClient() as client:
         #     response = await client.post(url, data=data, headers=headers)
         #     return response.json()
-        params = {
-            "endpoint": "/info/ticker",
-            "order_currency": order_currency,
-            "payment_currency": payment_currency,
-        }
-        result = await self.auth_api.xcoin_api_call(params["endpoint"], params)
-        return result
+        try:
+            params = {
+                "endpoint": "/info/ticker",
+                "order_currency": order_currency,
+                "payment_currency": payment_currency,
+            }
+            result = await self.auth_api.xcoin_api_call(params["endpoint"], params)
+            return result
+        except Exception as e:
+            logger.error(
+                "❌ Error while fetching recent transaction information: %s", e
+            )
+            logger.error("Traceback: %s", traceback.format_exc())
+            return {"status": "error", "message": str(e)}
 
     # 거래 주문내역 조회
     async def get_order_history(
@@ -699,17 +820,22 @@ class BithumbPrivateService:
         # async with httpx.AsyncClient() as client:
         #     response = await client.post(url, data=data, headers=headers)
         #     return response.json()
-        params = {
-            "endpoint": "/info/orders",
-            "order_currency": order_currency,
-            "payment_currency": payment_currency,
-            "order_id": order_id,
-            "type": order_type,
-            "count": count,
-            "after": after,
-        }
-        result = await self.auth_api.xcoin_api_call(params["endpoint"], params)
-        return result
+        try:
+            params = {
+                "endpoint": "/info/orders",
+                "order_currency": order_currency,
+                "payment_currency": payment_currency,
+                "order_id": order_id,
+                "type": order_type,
+                "count": count,
+                "after": after,
+            }
+            result = await self.auth_api.xcoin_api_call(params["endpoint"], params)
+            return result
+        except Exception as e:
+            logger.error("❌ Error while fetching order history: %s", e)
+            logger.error("Traceback: %s", traceback.format_exc())
+            return {"status": "error", "message": str(e)}
 
     # 거래 주문내역 상세 조회
     async def get_order_detail(
@@ -774,14 +900,19 @@ class BithumbPrivateService:
         # async with httpx.AsyncClient() as client:
         #     response = await client.post(url, data=data, headers=headers)
         #     return response.json()
-        params = {
-            "endpoint": "/info/order_detail",
-            "order_id": order_id,
-            "order_currency": order_currency,
-            "payment_currency": payment_currency,
-        }
-        result = await self.auth_api.xcoin_api_call(params["endpoint"], params)
-        return result
+        try:
+            params = {
+                "endpoint": "/info/order_detail",
+                "order_id": order_id,
+                "order_currency": order_currency,
+                "payment_currency": payment_currency,
+            }
+            result = await self.auth_api.xcoin_api_call(params["endpoint"], params)
+            return result
+        except Exception as e:
+            logger.error("❌ Error while fetching order detail: %s", e)
+            logger.error("Traceback: %s", traceback.format_exc())
+            return {"status": "error", "message": str(e)}
 
     # 거래 체결내역 조회
     async def get_user_transactions(
@@ -855,16 +986,21 @@ class BithumbPrivateService:
         # async with httpx.AsyncClient() as client:
         #     response = await client.post(url, data=data, headers=headers)
         #     return response.json()
-        params = {
-            "endpoint": "/info/user_transactions",
-            "offset": offset,
-            "count": count,
-            "searchGb": search_gb,
-            "order_currency": order_currency,
-            "payment_currency": payment_currency,
-        }
-        result = await self.auth_api.xcoin_api_call(params["endpoint"], params)
-        return result
+        try:
+            params = {
+                "endpoint": "/info/user_transactions",
+                "offset": offset,
+                "count": count,
+                "searchGb": search_gb,
+                "order_currency": order_currency,
+                "payment_currency": payment_currency,
+            }
+            result = await self.auth_api.xcoin_api_call(params["endpoint"], params)
+            return result
+        except Exception as e:
+            logger.error("❌ Error while fetching user transactions: %s", e)
+            logger.error("Traceback: %s", traceback.format_exc())
+            return {"status": "error", "message": str(e)}
 
     # 지정가 주문하기
     async def place_limit_order(
@@ -921,16 +1057,21 @@ class BithumbPrivateService:
         # async with httpx.AsyncClient() as client:
         #     response = await client.post(url, data=data, headers=headers)
         #     return response.json()
-        params = {
-            "endpoint": "/trade/place",
-            "order_currency": order_currency,
-            "payment_currency": payment_currency,
-            "units": units,
-            "price": price,
-            "type": order_type,
-        }
-        result = await self.auth_api.xcoin_api_call(params["endpoint"], params)
-        return result
+        try:
+            params = {
+                "endpoint": "/trade/place",
+                "order_currency": order_currency,
+                "payment_currency": payment_currency,
+                "units": units,
+                "price": price,
+                "type": order_type,
+            }
+            result = await self.auth_api.xcoin_api_call(params["endpoint"], params)
+            return result
+        except Exception as e:
+            logger.error("❌ Error while placing limit order: %s", e)
+            logger.error("Traceback: %s", traceback.format_exc())
+            return {"status": "error", "message": str(e)}
 
     # 시장가 매수하기
     async def market_buy(
@@ -979,14 +1120,19 @@ class BithumbPrivateService:
         # async with httpx.AsyncClient() as client:
         #     response = await client.post(url, data=data, headers=headers)
         #     return response.json()
-        params = {
-            "endpoint": "/trade/market_buy",
-            "units": units,
-            "order_currency": order_currency,
-            "payment_currency": payment_currency,
-        }
-        result = await self.auth_api.xcoin_api_call(params["endpoint"], params)
-        return result
+        try:
+            params = {
+                "endpoint": "/trade/market_buy",
+                "units": units,
+                "order_currency": order_currency,
+                "payment_currency": payment_currency,
+            }
+            result = await self.auth_api.xcoin_api_call(params["endpoint"], params)
+            return result
+        except Exception as e:
+            logger.error("❌ Error while placing market buy order: %s", e)
+            logger.error("Traceback: %s", traceback.format_exc())
+            return {"status": "error", "message": str(e)}
 
     # 시장가 매도하기
     async def market_sell(
@@ -1035,23 +1181,27 @@ class BithumbPrivateService:
         # async with httpx.AsyncClient() as client:
         #     response = await client.post(url, data=data, headers=headers)
         #     return response.json()
+        try:
+            if not isinstance(units, float):
+                units = float(units)
+            if not isinstance(order_currency, str):
+                order_currency = str(order_currency)
+            if not isinstance(payment_currency, str):
+                payment_currency = str(payment_currency)
 
-        if not isinstance(units, float):
-            units = float(units)
-        if not isinstance(order_currency, str):
-            order_currency = str(order_currency)
-        if not isinstance(payment_currency, str):
-            payment_currency = str(payment_currency)
-
-        params = {
-            "endpoint": "/trade/market_sell",
-            "units": units,
-            "order_currency": order_currency,
-            "payment_currency": payment_currency,
-        }
-        print(f"sell params: {params}")
-        result = await self.auth_api.xcoin_api_call(params["endpoint"], params)
-        return result
+            params = {
+                "endpoint": "/trade/market_sell",
+                "units": units,
+                "order_currency": order_currency,
+                "payment_currency": payment_currency,
+            }
+            print(f"sell params: {params}")
+            result = await self.auth_api.xcoin_api_call(params["endpoint"], params)
+            return result
+        except Exception as e:
+            logger.error("❌ Error while placing market sell order: %s", e)
+            logger.error("Traceback: %s", traceback.format_exc())
+            return {"status": "error", "message": str(e)}
 
     # 자동 주문하기
     async def stop_limit_order(
@@ -1112,17 +1262,22 @@ class BithumbPrivateService:
         # async with httpx.AsyncClient() as client:
         #     response = await client.post(url, data=data, headers=headers)
         #     return response.json()
-        params = {
-            "endpoint": "/trade/stop_limit",
-            "order_currency": order_currency,
-            "payment_currency": payment_currency,
-            "watch_price": watch_price,
-            "price": price,
-            "units": units,
-            "type": order_type,
-        }
-        result = await self.auth_api.xcoin_api_call(params["endpoint"], params)
-        return result
+        try:
+            params = {
+                "endpoint": "/trade/stop_limit",
+                "order_currency": order_currency,
+                "payment_currency": payment_currency,
+                "watch_price": watch_price,
+                "price": price,
+                "units": units,
+                "type": order_type,
+            }
+            result = await self.auth_api.xcoin_api_call(params["endpoint"], params)
+            return result
+        except Exception as e:
+            logger.error("❌ Error while placing stop limit order: %s", e)
+            logger.error("Traceback: %s", traceback.format_exc())
+            return {"status": "error", "message": str(e)}
 
     # 주문 취소하기
     async def cancel_order(
@@ -1174,12 +1329,17 @@ class BithumbPrivateService:
         # async with httpx.AsyncClient() as client:
         #     response = await client.post(url, data=data, headers=headers)
         #     return response.json()
-        params = {
-            "endpoint": "/trade/cancel",
-            "type": order_type,
-            "order_id": order_id,
-            "order_currency": order_currency,
-            "payment_currency": payment_currency,
-        }
-        result = await self.auth_api.xcoin_api_call(params["endpoint"], params)
-        return result
+        try:
+            params = {
+                "endpoint": "/trade/cancel",
+                "type": order_type,
+                "order_id": order_id,
+                "order_currency": order_currency,
+                "payment_currency": payment_currency,
+            }
+            result = await self.auth_api.xcoin_api_call(params["endpoint"], params)
+            return result
+        except Exception as e:
+            logger.error("❌ Error while cancelling order: %s", e)
+            logger.error("Traceback: %s", traceback.format_exc())
+            return {"status": "error", "message": str(e)}

@@ -303,13 +303,16 @@ async def check_stop_loss_condition(symbol, current_price, holding_coins):
 async def get_profit_percentage(symbol, current_price, holding_coins):
     if symbol in holding_coins:
         average_buy_price = holding_coins[symbol]["buy_price"]
+        print("log=> Average buy price: ", average_buy_price)
+        print("log=> Current price: ", current_price)
         profit_percentage = (
             (current_price - average_buy_price) / average_buy_price * 100
             if average_buy_price
             else None
         )
-        return float(profit_percentage)
-    return None
+        if profit_percentage:
+            return float(profit_percentage)
+    return 0
 
 
 async def calculate_rsi(close_prices: List[float], period: int = 14) -> float:
