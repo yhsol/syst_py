@@ -63,6 +63,7 @@ class TradingBot:
         self.active_symbols: Set[str] = set()
         self.holding_coins: Dict[str, HoldingCoin] = {}
         self.in_trading_process_coins: List = []
+        self.in_analysis_process_coins: List = []
         self.trading_history: Dict = {}
         self.candlestick_data: Dict = {}  # 캔들스틱 데이터를 저장할 딕셔너리
         self.available_krw_to_each_trade: float = 10000
@@ -93,7 +94,7 @@ class TradingBot:
             "12h": timedelta(hours=12),
             "24h": timedelta(hours=24),
         }
-        self.trade_coin_limmit = 30
+        self.trade_coin_limmit = 20
 
     def get_status(self):
         return {
@@ -183,10 +184,7 @@ class TradingBot:
         )
 
         # if not long signal, return False
-        if (
-            "long_entry" not in one_day_type_last_true_signal
-            and "short_exit" not in one_day_type_last_true_signal
-        ):
+        if "long_entry" not in one_day_type_last_true_signal:
             return False
 
         six_hour_analysis = await self.strategy.analyze_currency_by_turtle(
@@ -424,20 +422,20 @@ class TradingBot:
                             * (1 - self.trailing_stop_percent),
                         }
 
-                        if symbol not in self.active_symbols:
-                            await self.add_active_symbols([symbol])
-
                         # 매수 체결 메시지
                         await send_telegram_message(
                             (
                                 f"🟢 {symbol} 매수 체결! 🟢\n\n"
-                                f"📝 Reason: {reason}\n\n"
+                                # f"📝 Reason: {reason}\n\n"
                                 f"💰 매수 가격: {buy_price}\n"
                                 f"📉 손절가: {stop_loss_price}\n\n"
                                 f"📊 Holding coins: {list(self.holding_coins.keys())}\n\n"
                             ),
                             term_type="short-term",
                         )
+
+                        if symbol not in self.active_symbols:
+                            await self.add_active_symbols([symbol])
                         logger.info(
                             "Buy Success and Holding coins: %s", self.holding_coins
                         )
@@ -500,7 +498,7 @@ class TradingBot:
                         await send_telegram_message(
                             (
                                 f"🔴 {symbol} 매도 체결! 🔴\n\n"
-                                f"📝 Reason: {reason}\n\n"
+                                # f"📝 Reason: {reason}\n\n"
                                 f"💰 매도 가격: {current_price}\n\n"
                                 f"📈 수익: {profit}\n\n"
                                 f"📊 Holding coins: {list(self.holding_coins.keys())}\n\n"
