@@ -103,12 +103,14 @@ async def set_profit_target(
 
 @router.get(f"{ROOT}/buy", dependencies=[Depends(verify_api_key)])
 async def buy(symbol: str, reason: str = "user request") -> dict:
+    symbol = symbol.upper()
     await trading_bot.buy(symbol, reason)
     return {"status": f"buy {symbol} success"}
 
 
 @router.get(f"{ROOT}/sell", dependencies=[Depends(verify_api_key)])
 async def sell(symbol: str, amount: float = 1.0, reason: str = "user request") -> dict:
+    symbol = symbol.upper()
     await trading_bot.sell(symbol, amount, reason)
     return {"status": f"sell {symbol} success"}
 

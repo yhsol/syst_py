@@ -74,10 +74,10 @@ class TradingBot:
             "rsi": 0.15,  # 상대 강도 지수
             "price_change": 0.15,  # 가격 변화율
             "vwma": 0.2,  # 거래량 가중 이동 평균
-            "atr": 0.1,  # 평균 진폭 범위
-            "previous_day_price_change": 0.1,  # 전일 가격 변화
+            "atr": 0.2,  # 평균 진폭 범위
+            "previous_day_price_change": 0.2,  # 전일 가격 변화
             "moving_average": 0.1,  # 이동 평균
-            "volume_growth_rate": 0.1,  # 거래량 증가율
+            "volume_growth_rate": 0.2,  # 거래량 증가율
         }
         self.timeframe_intervals = {
             "1m": timedelta(minutes=1),
@@ -93,6 +93,8 @@ class TradingBot:
         }
         self.trade_coin_limmit = 20
         self.holding_coin_limmit = 5
+        # uptrend 를 판단하기 위한 timeframes
+        self.timeframes_for_check_uptrend = ["1h", "6h", "24h"]
 
     def get_status(self):
         return {
@@ -144,49 +146,66 @@ class TradingBot:
                 return
 
     async def is_in_uptrend(self, symbol: str) -> bool:
-        one_day_analysis = await self.strategy.analyze_currency_by_turtle(
-            order_currency=symbol,
-            payment_currency="KRW",
-            chart_intervals="24h",
-        )
-        one_day_type_last_true_signal = one_day_analysis.get(
-            "type_last_true_signal", ""
-        )
-
-        # if not long signal, return False
-        if "long_entry" not in one_day_type_last_true_signal:
-            return False
-
-        six_hour_analysis = await self.strategy.analyze_currency_by_turtle(
-            order_currency=symbol,
-            payment_currency="KRW",
-            chart_intervals="6h",
-        )
-        six_hour_type_last_true_signal = six_hour_analysis.get(
-            "type_last_true_signal", ""
-        )
-
-        if (
-            "long_entry" not in six_hour_type_last_true_signal
-            and "short_exit" not in six_hour_type_last_true_signal
-        ):
-            return False
-
-        one_hoour_analysis = await self.strategy.analyze_currency_by_turtle(
-            order_currency=symbol,
-            payment_currency="KRW",
-            chart_intervals="1h",
-        )
-        one_hour_type_last_true_signal = one_hoour_analysis.get(
-            "type_last_true_signal", ""
-        )
-        if (
-            "long_entry" not in one_hour_type_last_true_signal
-            and "short_exit" not in one_hour_type_last_true_signal
-        ):
-            return False
+        for timeframe in self.timeframes_for_check_uptrend:
+            logger.info("Check uptrend for %s with %s", symbol, timeframe)
+            analysis = await self.strategy.analyze_currency_by_turtle(
+                order_currency=symbol,
+                payment_currency="KRW",
+                chart_intervals=timeframe,
+            )
+            last_true_signal = analysis.get("type_last_true_signal", "")
+            if (
+                "long_entry" not in last_true_signal
+                and "short_exit" not in last_true_signal
+            ):
+                return False
 
         return True
+
+        # # 상승장이라고 판단되어서 one_day는 잠깐 주석처리
+        # one_day_analysis = await self.strategy.analyze_currency_by_turtle(
+        #     order_currency=symbol,
+        #     payment_currency="KRW",
+        #     chart_intervals="24h",
+        # )
+        # one_day_type_last_true_signal = one_day_analysis.get(
+        #     "type_last_true_signal", ""
+        # )
+
+        # # if not long signal, return False
+        # if "long_entry" not in one_day_type_last_true_signal:
+        #     return False
+
+        # six_hour_analysis = await self.strategy.analyze_currency_by_turtle(
+        #     order_currency=symbol,
+        #     payment_currency="KRW",
+        #     chart_intervals="6h",
+        # )
+        # six_hour_type_last_true_signal = six_hour_analysis.get(
+        #     "type_last_true_signal", ""
+        # )
+
+        # if (
+        #     "long_entry" not in six_hour_type_last_true_signal
+        #     and "short_exit" not in six_hour_type_last_true_signal
+        # ):
+        #     return False
+
+        # one_hoour_analysis = await self.strategy.analyze_currency_by_turtle(
+        #     order_currency=symbol,
+        #     payment_currency="KRW",
+        #     chart_intervals="1h",
+        # )
+        # one_hour_type_last_true_signal = one_hoour_analysis.get(
+        #     "type_last_true_signal", ""
+        # )
+        # if (
+        #     "long_entry" not in one_hour_type_last_true_signal
+        #     and "short_exit" not in one_hour_type_last_true_signal
+        # ):
+        #     return False
+
+        # return True
 
     async def calculate_score(self, symbol: str, chart_intervals: str = "1h") -> float:
         candlestick_data = await self.bithumb.get_candlestick_data(
@@ -293,6 +312,10 @@ class TradingBot:
     async def remove_holding_coin(self, symbol: str):
         if symbol in self.holding_coins:
             self.holding_coins.pop(symbol)
+            return {
+                "status": f"Successfully removed {symbol} from holding coins and current holding coins: {list(self.holding_coins.keys())}"
+            }
+        return {"status": f"{symbol} is not in holding coins"}
 
     async def set_profit_target(
         self, profit: Optional[float] = 5, amount: Optional[float] = 0.5
@@ -452,10 +475,10 @@ class TradingBot:
 
             # 매도 주문이 성공하면 holding_coins 에서 해당 코인 제거
             if result and result["status"] == "0000" and "order_id" in result:
-                if symbol in self.holding_coins:
-                    self.remove_holding_coin(symbol)
-                if symbol in self.websocket_connections:
-                    await self.disconnect_to_websocket(symbol)
+                # if amount >= 1.0:
+                buy_price = self.holding_coins[symbol]["buy_price"]
+                await self.remove_holding_coin(symbol)
+                await self.disconnect_to_websocket(symbol)
 
                 await send_telegram_message(
                     (f"🔴 {symbol} 매도 체결! 🔴\n\n" f"📝 Reason: {reason}\n\n"),
@@ -476,7 +499,7 @@ class TradingBot:
                     if contracts:
                         contract = contracts[0]
                         current_price = float(contract.get("price", 0))
-                        profit = current_price - self.holding_coins[symbol]["buy_price"]
+                        profit = current_price - buy_price
 
                         await send_telegram_message(
                             (
@@ -537,6 +560,9 @@ class TradingBot:
         if symbol in self.websocket_connections:
             websocket = self.websocket_connections.pop(symbol)
             await websocket.close()
+        return {
+            "status": f"Successfully disconnected to {symbol} WebSocket and current connections: {list(self.websocket_connections.keys())}"
+        }
 
     async def analyze_and_trade_by_immediate(self, symbol: str, current_price: float):
         if symbol not in self.holding_coins:
