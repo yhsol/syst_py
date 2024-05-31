@@ -67,7 +67,7 @@ class TradingBot:
         self.profit_target = {"profit": 5, "amount": 0.5}
         self.trailing_stop_percent = 0.02  # 예: 2% 트레일링 스탑
         self.trailing_stop_amount = float(1)  # 이익 실현 시 매도할 양
-        self.current_timeframe = "10m"
+        self.current_timeframe = "1h"
         self.last_analysis_time: Dict[str, datetime] = {}
         self.weights = {
             "volume": 0.2,  # 거래량
@@ -161,51 +161,6 @@ class TradingBot:
                 return False
 
         return True
-
-        # # 상승장이라고 판단되어서 one_day는 잠깐 주석처리
-        # one_day_analysis = await self.strategy.analyze_currency_by_turtle(
-        #     order_currency=symbol,
-        #     payment_currency="KRW",
-        #     chart_intervals="24h",
-        # )
-        # one_day_type_last_true_signal = one_day_analysis.get(
-        #     "type_last_true_signal", ""
-        # )
-
-        # # if not long signal, return False
-        # if "long_entry" not in one_day_type_last_true_signal:
-        #     return False
-
-        # six_hour_analysis = await self.strategy.analyze_currency_by_turtle(
-        #     order_currency=symbol,
-        #     payment_currency="KRW",
-        #     chart_intervals="6h",
-        # )
-        # six_hour_type_last_true_signal = six_hour_analysis.get(
-        #     "type_last_true_signal", ""
-        # )
-
-        # if (
-        #     "long_entry" not in six_hour_type_last_true_signal
-        #     and "short_exit" not in six_hour_type_last_true_signal
-        # ):
-        #     return False
-
-        # one_hoour_analysis = await self.strategy.analyze_currency_by_turtle(
-        #     order_currency=symbol,
-        #     payment_currency="KRW",
-        #     chart_intervals="1h",
-        # )
-        # one_hour_type_last_true_signal = one_hoour_analysis.get(
-        #     "type_last_true_signal", ""
-        # )
-        # if (
-        #     "long_entry" not in one_hour_type_last_true_signal
-        #     and "short_exit" not in one_hour_type_last_true_signal
-        # ):
-        #     return False
-
-        # return True
 
     async def calculate_score(self, symbol: str, chart_intervals: str = "1h") -> float:
         candlestick_data = await self.bithumb.get_candlestick_data(
@@ -704,7 +659,10 @@ class TradingBot:
                 payment_currency="KRW",
                 chart_intervals=self.current_timeframe,
             )
+
+            # 매수는 latest signal 을 기준으로, 매도는 last signal 을 기준으로
             latest_signal = analysis.get("type_latest_signal", "")
+            last_signal = analysis.get("type_last_true_signal", "")
 
             if await check_entry_condition(symbol, latest_signal, self.trading_history):
                 if symbol in self.holding_coins:
@@ -724,7 +682,7 @@ class TradingBot:
 
                 self.in_trading_process_coins.remove(symbol)
 
-            if await check_exit_condition(symbol, latest_signal, self.trading_history):
+            if await check_exit_condition(symbol, last_signal, self.trading_history):
                 if symbol not in self.holding_coins:
                     continue
 
