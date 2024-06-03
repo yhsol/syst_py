@@ -67,10 +67,11 @@ async def add_holding(
     symbol: str,
     units: float,
     buy_price: float,
+    split_sell_count: int = 0,
 ) -> dict:
     symbol = symbol.upper()
 
-    await trading_bot.add_holding_coin(symbol, units, buy_price)
+    await trading_bot.add_holding_coin(symbol, units, buy_price, split_sell_count)
     background_tasks.add_task(trading_bot.connect_to_websocket, symbol)
     return {
         "status": f"{symbol} add to holding coin and active symbols and started trading"
@@ -150,3 +151,11 @@ async def set_trade_coin_limit(trade_coin_limit: int) -> dict:
 async def get_candlestick_data(symbol: str, timeframe: str) -> dict:
     symbol = symbol.upper()
     return await bithumb_service.get_candlestick_data(symbol, "KRW", timeframe)
+
+
+@router.get(
+    f"{ROOT}/set-available-split-sell-count", dependencies=[Depends(verify_api_key)]
+)
+async def set_available_split_sell_count(split_sell_count: int) -> dict:
+    response = trading_bot.set_available_split_sell_count(split_sell_count)
+    return response

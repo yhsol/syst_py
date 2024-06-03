@@ -41,6 +41,16 @@ class HoldingCoin(TypedDict):
     reason: Optional[str]
     highest_price: Optional[float]
     trailing_stop_price: Optional[float]  # 트레일링 스탑 가격
+    split_sell_count: Optional[int]  # 매도 횟수
+
+
+Reason = {
+    "entrySignalConditionMet": "entrySignalConditionMet",
+    "eixtSignalConditionMet": "eixtSignalConditionMet",
+    "trailingStop": "trailingStop",
+    "stopLoss": "stopLoss",
+    "profitTarget": "profitTarget",
+}
 
 
 class TradingBot:
@@ -95,6 +105,7 @@ class TradingBot:
         self.holding_coin_limmit = 5
         # uptrend 를 판단하기 위한 timeframes
         self.timeframes_for_check_uptrend = ["1h", "6h", "24h"]
+        self.available_split_sell_count = 1
 
     def get_status(self):
         return {
@@ -122,6 +133,10 @@ class TradingBot:
     def set_trailing_stop_amount(self, amount: float):
         self.trailing_stop_amount = amount
         return {"status": f"Trailing stop amount set to {amount}"}
+
+    def set_available_split_sell_count(self, count: int):
+        self.available_split_sell_count = count
+        return {"status": f"Available split sell count set to {count}"}
 
     async def set_trailing_stop(self, symbol: str, percent: float):
         self.trailing_stop_percent = percent
@@ -251,7 +266,9 @@ class TradingBot:
 
         return sorted_symbols
 
-    async def add_holding_coin(self, symbol: str, units: float, buy_price: float):
+    async def add_holding_coin(
+        self, symbol: str, units: float, buy_price: float, split_sell_count: int = 0
+    ):
         stop_loss_price = buy_price * 0.98
         self.holding_coins[symbol] = {
             "units": units,
@@ -262,6 +279,7 @@ class TradingBot:
             "reason": "addByUser",
             "highest_price": buy_price,
             "trailing_stop_price": buy_price * (1 - self.trailing_stop_percent),
+            "split_sell_count": split_sell_count,
         }
 
     async def remove_holding_coin(self, symbol: str):
@@ -414,6 +432,19 @@ class TradingBot:
     async def sell(self, symbol, amount=1.0, reason=""):
         try:
             logger.info("Execute to sell %s by %s", symbol, reason)
+            immediate_sell_reasons = [
+                Reason["stopLoss"],
+                Reason["eixtSignalConditionMet"],
+            ]
+            split_sell_count = self.holding_coins[symbol].get("split_sell_count", 0)
+            if (
+                reason not in immediate_sell_reasons
+            ) and split_sell_count > self.available_split_sell_count:
+                return {
+                    "status": "passed",
+                    "message": f"Split sell count is over the limit: {split_sell_count}",
+                }
+
             sell_units = await self.get_available_sell_units(symbol)
             sell_units = float(sell_units)
 
@@ -431,9 +462,12 @@ class TradingBot:
             # 매도 주문이 성공하면 holding_coins 에서 해당 코인 제거
             if result and result["status"] == "0000" and "order_id" in result:
                 # if amount >= 1.0:
-                buy_price = self.holding_coins[symbol]["buy_price"]
-                await self.remove_holding_coin(symbol)
-                await self.disconnect_to_websocket(symbol)
+
+                if amount >= 1.0:
+                    await self.remove_holding_coin(symbol)
+                    await self.disconnect_to_websocket(symbol)
+                else:
+                    self.holding_coins[symbol]["split_sell_count"] += 1
 
                 await send_telegram_message(
                     (f"🔴 {symbol} 매도 체결! 🔴\n\n" f"📝 Reason: {reason}\n\n"),
@@ -454,7 +488,8 @@ class TradingBot:
                     if contracts:
                         contract = contracts[0]
                         current_price = float(contract.get("price", 0))
-                        profit = current_price - buy_price
+                        buy_price = self.holding_coins[symbol]["buy_price"] or 0
+                        profit = (current_price - buy_price) or 0
 
                         await send_telegram_message(
                             (
@@ -553,7 +588,7 @@ class TradingBot:
             self.in_trading_process_coins.append(symbol)
 
             sell_result = await self.sell(
-                symbol, amount=self.trailing_stop_amount, reason="trailingStop"
+                symbol, amount=self.trailing_stop_amount, reason=Reason["trailingStop"]
             )
             if sell_result and sell_result["status"] == "0000":
                 self.trading_history.setdefault(symbol, []).append(
@@ -577,7 +612,7 @@ class TradingBot:
 
             self.in_trading_process_coins.append(symbol)
 
-            sell_result = await self.sell(symbol, reason="stopLoss")
+            sell_result = await self.sell(symbol, reason=Reason["stopLoss"])
             if sell_result and sell_result["status"] == "0000":
                 self.trading_history.setdefault(symbol, []).append(
                     {
@@ -604,7 +639,7 @@ class TradingBot:
             sell_result = await self.sell(
                 symbol,
                 amount=self.profit_target.get("amount", self.profit_target["amount"]),
-                reason="profitTarget",
+                reason=Reason["profitTarget"],
             )
             if sell_result and sell_result["status"] == "0000":
                 self.trading_history.setdefault(symbol, []).append(
@@ -676,7 +711,9 @@ class TradingBot:
 
                 self.in_trading_process_coins.append(symbol)
 
-                buy_result = await self.buy(symbol, reason="entrySignalConditionMet")
+                buy_result = await self.buy(
+                    symbol, reason=Reason["entrySignalConditionMet"]
+                )
                 if buy_result and buy_result["status"] == "0000":
                     pass
 
@@ -691,7 +728,9 @@ class TradingBot:
 
                 self.in_trading_process_coins.append(symbol)
 
-                sell_result = await self.sell(symbol, reason="eixtSignalConditionMet")
+                sell_result = await self.sell(
+                    symbol, reason=Reason["eixtSignalConditionMet"]
+                )
                 if sell_result and sell_result["status"] == "0000":
                     pass
 
