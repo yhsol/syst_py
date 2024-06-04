@@ -77,7 +77,7 @@ class TradingBot:
         self.profit_target = {"profit": 5, "amount": 0.5}
         self.trailing_stop_percent = 0.02  # 예: 2% 트레일링 스탑
         self.trailing_stop_amount = float(1)  # 이익 실현 시 매도할 양
-        self.current_timeframe = "1h"
+        self.current_timeframe = "30m"
         self.last_analysis_time: Dict[str, datetime] = {}
         self.weights = {
             "volume": 0.2,  # 거래량
@@ -742,6 +742,7 @@ class TradingBot:
     async def run(self, symbols: Optional[List[str]] = None, timeframe: str = "1h"):
         self._running = True
         self.set_timeframe(timeframe)
+        self.trading_history = {}  # 추후에 database 에 저장하도록 변경해야함.
 
         while self._running:
             await send_telegram_message(

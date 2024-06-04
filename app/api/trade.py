@@ -32,7 +32,7 @@ async def apitest():
 async def runtrade(
     background_tasks: BackgroundTasks,
     symbols: Optional[List[str]] = Query(None),
-    timeframe: str = "1h",
+    timeframe: str = "30m",
 ) -> dict:
     if symbols is not None:
         symbols = [symbol.upper() for symbol in symbols]
