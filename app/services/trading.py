@@ -479,6 +479,7 @@ class TradingBot:
                     self.holding_coins[symbol]["split_sell_count"] += 1
 
                 if amount >= 1.0:
+                    logger.info("Remove holding coin while sell: %s", symbol)
                     await self.remove_holding_coin(symbol)
                     await self.disconnect_to_websocket(symbol)
 
