@@ -154,12 +154,11 @@ class TradingBot:
     async def set_trailing_stop(self, symbol: str, percent: float):
         self.trailing_stop_percent = percent
         if symbol in self.holding_coins:
-            buy_price = self.holding_coins[symbol]["buy_price"]
+            buy_price = self.holding_coins[symbol]["buy_price"] or 0
             self.holding_coins[symbol]["highest_price"] = buy_price
-            if buy_price is not None:
-                self.holding_coins[symbol]["trailing_stop_price"] = buy_price * (
-                    1 - percent
-                )
+            self.holding_coins[symbol]["trailing_stop_price"] = buy_price * (
+                1 - percent
+            )
         return {"status": f"Trailing stop set to {percent*100}% for {symbol}"}
 
     async def update_trailing_stop(self, symbol: str, current_price: float):
@@ -582,12 +581,11 @@ class TradingBot:
         await self.update_trailing_stop(symbol, current_price)
 
         # 트레일링 스탑 가격 도달 시 매도
-        trailing_stop_price = self.holding_coins[symbol]["trailing_stop_price"]
-        if trailing_stop_price is not None:
-            is_trailing_stop_condition_met = (
-                current_price <= trailing_stop_price
-                and profit_percentage > 1  # 이익이 1% 미만이라면 매도하지 않고 기다림.
-            )
+        trailing_stop_price = self.holding_coins[symbol]["trailing_stop_price"] or 0
+        is_trailing_stop_condition_met = (
+            current_price <= trailing_stop_price
+            and profit_percentage > 1  # 이익이 1% 미만이라면 매도하지 않고 기다림.
+        )
         is_stop_loss_condition_met = await check_stop_loss_condition(
             symbol, current_price, self.holding_coins
         )
