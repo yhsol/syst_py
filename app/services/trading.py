@@ -475,11 +475,12 @@ class TradingBot:
             if result and result["status"] == "0000" and "order_id" in result:
                 # if amount >= 1.0:
 
+                if amount < 1.0:
+                    self.holding_coins[symbol]["split_sell_count"] += 1
+
                 if amount >= 1.0:
                     await self.remove_holding_coin(symbol)
                     await self.disconnect_to_websocket(symbol)
-                else:
-                    self.holding_coins[symbol]["split_sell_count"] += 1
 
                 await send_telegram_message(
                     (f"🔴 {symbol} 매도 체결! 🔴\n\n" f"📝 Reason: {reason}\n\n"),
