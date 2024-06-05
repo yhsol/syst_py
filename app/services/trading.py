@@ -4,6 +4,7 @@ import logging
 import traceback
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Set, TypedDict
+from collections import defaultdict
 
 import websockets
 
@@ -68,7 +69,19 @@ class TradingBot:
         self._running = False
         self.websocket_connections: Dict[str, websockets.WebSocketClientProtocol] = {}
         self.interest_symbols: Set[str] = set()
-        self.holding_coins: Dict[str, HoldingCoin] = {}
+        self.holding_coins: defaultdict[str, HoldingCoin] = defaultdict(
+            lambda: {
+                "units": 0.0,
+                "buy_price": 0.0,
+                "stop_loss_price": 0.0,
+                "order_id": "",
+                "profit": 0.0,
+                "reason": "",
+                "highest_price": 0.0,
+                "trailing_stop_price": 0.0,
+                "split_sell_count": 0,
+            }
+        )
         self.in_trading_process_coins: List = []
         self.in_analysis_process_coins: List = []
         self.trading_history: Dict = {}
@@ -141,19 +154,19 @@ class TradingBot:
     async def set_trailing_stop(self, symbol: str, percent: float):
         self.trailing_stop_percent = percent
         if symbol in self.holding_coins:
-            buy_price = self.holding_coins[symbol]["buy_price"] or 0
-
+            buy_price = self.holding_coins[symbol]["buy_price"]
             self.holding_coins[symbol]["highest_price"] = buy_price
-            self.holding_coins[symbol]["trailing_stop_price"] = buy_price * (
-                1 - percent
-            )
+            if buy_price is not None:
+                self.holding_coins[symbol]["trailing_stop_price"] = buy_price * (
+                    1 - percent
+                )
         return {"status": f"Trailing stop set to {percent*100}% for {symbol}"}
 
     async def update_trailing_stop(self, symbol: str, current_price: float):
         if symbol in self.holding_coins:
-            highest_price = self.holding_coins[symbol].get("highest_price", 0) or 0
+            highest_price = self.holding_coins[symbol]["highest_price"]
 
-            if current_price > highest_price:
+            if highest_price is not None and current_price > highest_price:
                 self.holding_coins[symbol]["highest_price"] = current_price
                 self.holding_coins[symbol]["trailing_stop_price"] = current_price * (
                     1 - self.trailing_stop_percent
@@ -488,8 +501,8 @@ class TradingBot:
                     if contracts:
                         contract = contracts[0]
                         current_price = float(contract.get("price", 0))
-                        buy_price = self.holding_coins[symbol]["buy_price"] or 0
-                        profit = (current_price - buy_price) or 0
+                        buy_price = self.holding_coins[symbol]["buy_price"]
+                        profit = current_price - buy_price
 
                         await send_telegram_message(
                             (
@@ -569,11 +582,12 @@ class TradingBot:
         await self.update_trailing_stop(symbol, current_price)
 
         # 트레일링 스탑 가격 도달 시 매도
-        trailing_stop_price = self.holding_coins[symbol].get("trailing_stop_price") or 0
-        is_trailing_stop_condition_met = (
-            current_price <= trailing_stop_price
-            and profit_percentage > 1  # 이익이 1% 미만이라면 매도하지 않고 기다림.
-        )
+        trailing_stop_price = self.holding_coins[symbol]["trailing_stop_price"]
+        if trailing_stop_price is not None:
+            is_trailing_stop_condition_met = (
+                current_price <= trailing_stop_price
+                and profit_percentage > 1  # 이익이 1% 미만이라면 매도하지 않고 기다림.
+            )
         is_stop_loss_condition_met = await check_stop_loss_condition(
             symbol, current_price, self.holding_coins
         )
@@ -594,7 +608,7 @@ class TradingBot:
                 self.trading_history.setdefault(symbol, []).append(
                     {
                         "action": "sell",
-                        "reason": "tradingStopConditionMet",
+                        "reason": "trailingStopConditionMet",
                         "exit_signal": "reach_trailing_stop",
                         "price": current_price,
                         "exit_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
