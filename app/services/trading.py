@@ -87,7 +87,7 @@ class TradingBot:
         self.trading_history: Dict = {}
         self.candlestick_data: Dict = {}  # 캔들스틱 데이터를 저장할 딕셔너리
         self.available_krw_to_each_trade: float = 10000
-        self.profit_target = {"profit": 5, "amount": 0.5}
+        self.profit_target = {"profit": 10, "amount": 0.5}
         self.trailing_stop_percent = 0.02  # 예: 2% 트레일링 스탑
         self.trailing_stop_amount = float(1)  # 이익 실현 시 매도할 양
         self.current_timeframe = "30m"
@@ -297,6 +297,7 @@ class TradingBot:
     async def remove_holding_coin(self, symbol: str):
         if symbol in self.holding_coins:
             self.holding_coins.pop(symbol)
+            logger.info("Remove holding coin: %s", symbol)
             return {
                 "status": f"Successfully removed {symbol} from holding coins and current holding coins: {list(self.holding_coins.keys())}"
             }
@@ -473,7 +474,7 @@ class TradingBot:
 
             # 매도 주문이 성공하면 holding_coins 에서 해당 코인 제거
             if result and result["status"] == "0000" and "order_id" in result:
-                # if amount >= 1.0:
+                buy_price = self.holding_coins[symbol]["buy_price"]
 
                 if amount < 1.0:
                     self.holding_coins[symbol]["split_sell_count"] += 1
@@ -502,15 +503,19 @@ class TradingBot:
                     if contracts:
                         contract = contracts[0]
                         current_price = float(contract.get("price", 0))
-                        buy_price = self.holding_coins[symbol]["buy_price"]
-                        profit = current_price - buy_price
+                        if current_price and buy_price:
+                            profit_percentage = (
+                                (current_price - buy_price) / buy_price * 100
+                            )
+                        else:
+                            profit_percentage = 0
 
                         await send_telegram_message(
                             (
                                 f"🔴 {symbol} 매도 체결 상세! 🔴\n\n"
                                 f"📝 Reason: {reason}\n\n"
                                 f"💰 매도 가격: {current_price}\n\n"
-                                f"📈 수익: {profit}\n\n"
+                                f"📈 수익: {profit_percentage}\n\n"
                                 f"📊 Holding coins: {list(self.holding_coins.keys())}\n\n"
                             ),
                             term_type="short-term",

@@ -87,7 +87,9 @@ async def remove_holding(symbol: str) -> dict:
     await trading_bot.remove_holding_coin(symbol)
     await trading_bot.disconnect_to_websocket(symbol)
 
-    return {"status": f"{symbol} removed from holding coins"}
+    return {
+        "status": f"{symbol} removed from holding coins, and now holding coins are {trading_bot.holding_coins}"
+    }
 
 
 @router.get(f"{ROOT}/set-profit-target", dependencies=[Depends(verify_api_key)])
