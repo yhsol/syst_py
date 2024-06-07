@@ -536,7 +536,9 @@ class TradingBot:
         self,
         symbol: str,
     ):
-        async with websockets.connect("wss://pubwss.bithumb.com/pub/ws") as websocket:
+        async with websockets.connect(
+            "wss://pubwss.bithumb.com/pub/ws", ping_interval=20, ping_timeout=20
+        ) as websocket:
             self.websocket_connections[symbol] = websocket
             subscribe_message = json.dumps(
                 {
