@@ -61,7 +61,7 @@ class Backtest:
                 date = datetime.fromtimestamp(timestamp / 1000).strftime(
                     "%Y-%m-%d %H:%M:%S"
                 )
-                print(f"date: {date}")
+
                 close_price = float(close_price)
 
                 # 해당 시점의 시그널을 분석합니다.
@@ -70,7 +70,7 @@ class Backtest:
                 )
 
                 # 매수 및 매도 조건을 체크합니다.
-                await self.check_trading_conditions(symbol, close_price, analysis)
+                await self.check_trading_conditions(symbol, close_price, analysis, date)
 
         self.save_results_to_excel()
 
@@ -106,7 +106,7 @@ class Backtest:
         }
 
     async def check_trading_conditions(
-        self, symbol: str, current_price: float, analysis: dict
+        self, symbol: str, current_price: float, analysis: dict, date: str
     ):
         latest_signal = analysis.get("type_latest_signal", "")
         last_signal = analysis.get("type_last_true_signal", "")
@@ -127,7 +127,7 @@ class Backtest:
                         "symbol": symbol,
                         "action": "sell",
                         "price": current_price,
-                        "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        "date": date,
                         "profit": (current_price - holding_coin["buy_price"])
                         / holding_coin["buy_price"]
                         * 100,  # 수익률 추가
@@ -145,7 +145,7 @@ class Backtest:
                         "symbol": symbol,
                         "action": "sell",
                         "price": current_price,
-                        "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        "date": date,
                         "profit": (current_price - holding_coin["buy_price"])
                         / holding_coin["buy_price"]
                         * 100,  # 수익률 추가
@@ -177,7 +177,7 @@ class Backtest:
                     "symbol": symbol,
                     "action": "buy",
                     "price": current_price,
-                    "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    "date": date,
                 }
             )
             self.last_actions[symbol] = "buy"  # 마지막 액션 업데이트
@@ -194,7 +194,7 @@ class Backtest:
                         "symbol": symbol,
                         "action": "sell",
                         "price": current_price,
-                        "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        "date": date,
                         "profit": profit,  # 수익률 추가
                     }
                 )
@@ -232,7 +232,7 @@ class Backtest:
             }
         )
 
-        with pd.ExcelWriter("backtest_results.xlsx") as writer:
+        with pd.ExcelWriter("backtest_results.xlsx", mode="w") as writer:
             df.to_excel(writer, index=False, sheet_name="Trades")
             summary.to_excel(writer, index=False, sheet_name="Summary")
 
