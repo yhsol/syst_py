@@ -3,6 +3,7 @@ from typing import List, Optional
 from fastapi import APIRouter, BackgroundTasks, Depends, Query
 
 from app.services.bithumb_service import BithumbService, BithumbPrivateService
+from app.services.market_monitor import MarketMonitor
 from app.services.stratege_service import StrategyService
 from app.services.trading import TradingBot
 from app.dependencies.auth import verify_api_key
@@ -20,6 +21,7 @@ trading_bot = TradingBot(
     bithumb_private_service=bithumb_private_service,
     strategy_service=strategy_service,
 )
+market_monitor = MarketMonitor(trading_bot=trading_bot, bithumb_service=bithumb_service)
 
 
 @router.get(f"{ROOT}/api-test", dependencies=[Depends(verify_api_key)])
@@ -161,3 +163,17 @@ async def get_candlestick_data(symbol: str, timeframe: str) -> dict:
 async def set_available_split_sell_count(split_sell_count: int) -> dict:
     response = trading_bot.set_available_split_sell_count(split_sell_count)
     return response
+
+
+@router.get(f"{ROOT}/run-mm", dependencies=[Depends(verify_api_key)])
+async def run_market_monitor(
+    background_tasks: BackgroundTasks,
+):
+    background_tasks.add_task(market_monitor.run)
+    return {"status": "market monitor started"}
+
+
+@router.get(f"{ROOT}/stop-mm", dependencies=[Depends(verify_api_key)])
+async def stop_market_monitor() -> dict:
+    await market_monitor.stop()
+    return {"status": "market monitor stopped"}
