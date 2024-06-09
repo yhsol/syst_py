@@ -1,6 +1,7 @@
 # app/api/trade.py
 from typing import List, Optional
 from fastapi import APIRouter, BackgroundTasks, Depends, Query
+from fastapi.responses import FileResponse, JSONResponse
 
 from app.services.bithumb_service import BithumbService, BithumbPrivateService
 from app.services.market_monitor import MarketMonitor
@@ -177,3 +178,26 @@ async def run_market_monitor(
 async def stop_market_monitor() -> dict:
     await market_monitor.stop()
     return {"status": 200, "message": "market monitor stopped"}
+
+
+@router.get(f"{ROOT}/download-log", dependencies=[Depends(verify_api_key)])
+async def download_log():
+    log_file_path = "trading_bot.log"
+    return FileResponse(
+        log_file_path, media_type="application/octet-stream", filename="trading_bot.log"
+    )
+
+
+@router.get(f"{ROOT}/clear-log", dependencies=[Depends(verify_api_key)])
+async def clear_log():
+    log_file_path = "trading_bot.log"
+    try:
+        with open(log_file_path, "w") as log_file:
+            log_file.truncate(0)  # 로그 파일을 비웁니다.
+        return JSONResponse(
+            content={"status": "success", "message": "Log file cleared."}
+        )
+    except Exception as e:
+        return JSONResponse(
+            content={"status": "error", "message": str(e)}, status_code=500
+        )
