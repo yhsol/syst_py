@@ -170,10 +170,10 @@ async def run_market_monitor(
     background_tasks: BackgroundTasks,
 ):
     background_tasks.add_task(market_monitor.run)
-    return {"status": "market monitor started"}
+    return {"status": 200, "message": "market monitor started"}
 
 
 @router.get(f"{ROOT}/stop-mm", dependencies=[Depends(verify_api_key)])
 async def stop_market_monitor() -> dict:
     await market_monitor.stop()
-    return {"status": "market monitor stopped"}
+    return {"status": 200, "message": "market monitor stopped"}

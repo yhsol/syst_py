@@ -1,5 +1,9 @@
+from contextlib import asynccontextmanager
 import os
 from typing import Union
+
+from apscheduler.schedulers.asyncio import AsyncIOScheduler  # type: ignore
+import aiohttp
 
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI
@@ -7,8 +11,6 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import coin_analysis, signal, trade
 from app.dependencies.auth import verify_api_key
-
-app = FastAPI()
 
 load_dotenv()
 
@@ -19,6 +21,52 @@ origins = [
     "http://localhost:3000",
     CLIENT_URL,
 ]
+
+API_KEY = os.getenv("API_KEY")
+
+
+async def call_run_mm():
+    async with aiohttp.ClientSession() as session:
+
+        async with session.get(
+            "http://localhost:8000/trade/run-mm", headers={"api-key": API_KEY}
+        ) as response:
+            if response.status == 200:
+                print("Successfully called run-mm")
+            else:
+                print("Failed to call run-mm")
+
+
+async def stop_mm():
+    async with aiohttp.ClientSession() as session:
+
+        async with session.get(
+            "http://localhost:8000/trade/stop-mm", headers={"api-key": API_KEY}
+        ) as response:
+            if response.status == 200:
+                print("Successfully called stop-mm")
+            else:
+                print("Failed to call stop-mm")
+
+
+def schedule_run_mm():
+    scheduler = AsyncIOScheduler()
+    scheduler.add_job(call_run_mm, "cron", hour=23, minute=58)
+    scheduler.add_job(stop_mm, "cron", hour=0, minute=8)
+    scheduler.start()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    try:
+        schedule_run_mm()
+        yield
+    finally:
+        await stop_mm()
+
+
+app = FastAPI(lifespan=lifespan)
+
 
 app.add_middleware(
     CORSMiddleware,
