@@ -66,7 +66,7 @@ class TradingBot:
         self.bithumb = bithumb_service
         self.bithumb_private = bithumb_private_service
         self.strategy = strategy_service
-        self.backtester = Backtest(bithumb_service, strategy_service, self)
+        self.backtester = Backtest(bithumb_service, strategy_service)
 
         self._running = False
         self.websocket_connections: Dict[str, websockets.WebSocketClientProtocol] = {}

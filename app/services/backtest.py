@@ -22,13 +22,13 @@ class Backtest:
         self,
         bithumb_service: BithumbService,
         strategy_service: StrategyService,
-        trading_bot,
     ):
         self.bithumb = bithumb_service
         self.strategy = strategy_service
-        self.trading_bot = trading_bot
         self.trading_history: List[Dict[str, Union[str, float]]] = []
         self.last_actions: Dict[str, str] = {}  # 마지막 액션을 저장할 딕셔너리
+        self.holding_coins: Dict[str, Dict] = {}
+        self.trailing_stop_percent = 0.01
 
     async def backtest(
         self,
@@ -40,6 +40,7 @@ class Backtest:
         # 초기화
         self.trading_history = []
         self.last_actions = {}
+        self.holding_coins = {}
 
         candidate_symbols = []
 
@@ -127,8 +128,8 @@ class Backtest:
         last_action_for_symbol = self.last_actions.get(symbol)
 
         # 트레일링 스탑과 스톱 로스 조건
-        if symbol in self.trading_bot.holding_coins:
-            holding_coin = self.trading_bot.holding_coins[symbol]
+        if symbol in self.holding_coins:
+            holding_coin = self.holding_coins[symbol]
             highest_price = holding_coin["highest_price"]
             trailing_stop_price = highest_price * 0.99
             stop_loss_price = holding_coin["buy_price"] * 0.98
@@ -147,7 +148,7 @@ class Backtest:
                         * 100,  # 수익률 추가
                     }
                 )
-                del self.trading_bot.holding_coins[symbol]
+                del self.holding_coins[symbol]
                 self.last_actions[symbol] = "sell"  # 마지막 액션 업데이트
                 return
 
@@ -165,16 +166,16 @@ class Backtest:
                         * 100,  # 수익률 추가
                     }
                 )
-                del self.trading_bot.holding_coins[symbol]
+                del self.holding_coins[symbol]
                 self.last_actions[symbol] = "sell"  # 마지막 액션 업데이트
                 return
 
         # 현재 액션과 마지막 액션이 반대인지 확인
         if last_action_for_symbol != "buy" and await check_entry_condition(
-            symbol, latest_signal, self.trading_bot.trading_history, is_test=True
+            symbol, latest_signal, self.trading_history, is_test=True
         ):
             print("Buy condition met")
-            self.trading_bot.holding_coins[symbol] = {
+            self.holding_coins[symbol] = {
                 "units": 1.0,  # 백테스팅에서는 1 단위로 가정합니다.
                 "buy_price": current_price,
                 "stop_loss_price": current_price * 0.98,
@@ -182,8 +183,7 @@ class Backtest:
                 "profit": 0,
                 "reason": "backtest",
                 "highest_price": current_price,
-                "trailing_stop_price": current_price
-                * (1 - self.trading_bot.trailing_stop_percent),
+                "trailing_stop_price": current_price * (1 - self.trailing_stop_percent),
                 "split_sell_count": 0,
             }
             self.trading_history.append(
@@ -197,11 +197,11 @@ class Backtest:
             self.last_actions[symbol] = "buy"  # 마지막 액션 업데이트
 
         if last_action_for_symbol == "buy" and await check_exit_condition(
-            symbol, last_signal, self.trading_bot.trading_history, is_test=True
+            symbol, last_signal, self.trading_history, is_test=True
         ):
             print("Sell condition met")
-            if symbol in self.trading_bot.holding_coins:
-                buy_price = self.trading_bot.holding_coins[symbol]["buy_price"]
+            if symbol in self.holding_coins:
+                buy_price = self.holding_coins[symbol]["buy_price"]
                 profit = (current_price - buy_price) / buy_price * 100  # 수익률 계산
                 self.trading_history.append(
                     {
@@ -212,7 +212,7 @@ class Backtest:
                         "profit": profit,  # 수익률 추가
                     }
                 )
-                del self.trading_bot.holding_coins[symbol]
+                del self.holding_coins[symbol]
                 self.last_actions[symbol] = "sell"  # 마지막 액션 업데이트
 
     def save_results_to_excel(self):
