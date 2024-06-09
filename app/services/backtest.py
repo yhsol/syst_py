@@ -65,9 +65,7 @@ class Backtest:
                 continue  # 데이터가 유효하지 않으면 건너뜁니다.
 
             for data_point in historical_data["data"]:
-                timestamp, open_price, high_price, low_price, close_price, volume = (
-                    data_point
-                )
+                timestamp, _, _, _, close_price, _ = data_point
                 date = datetime.fromtimestamp(timestamp / 1000)
                 if (start_datetime and date < start_datetime) or (
                     end_datetime and date > end_datetime
