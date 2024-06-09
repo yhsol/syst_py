@@ -209,6 +209,10 @@ async def run_backtest(
     symbols: Optional[List[str]] = Query(None),
     start_date: Optional[str] = Query(None),
     end_date: Optional[str] = Query(None),
+    timeframe: str = "1h",
 ):
-    background_tasks.add_task(trading_bot.run_backtest, symbols, start_date, end_date)
+    symbols = [symbol.upper() for symbol in symbols] if symbols is not None else None
+    background_tasks.add_task(
+        trading_bot.run_backtest, symbols, start_date, end_date, timeframe
+    )
     return {"status": "backtest started"}

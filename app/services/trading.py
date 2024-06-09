@@ -768,8 +768,9 @@ class TradingBot:
         symbols: Optional[List[str]],
         start_date: Optional[str],
         end_date: Optional[str],
+        timeframe: str = "1h",
     ):
-        await self.backtester.backtest(symbols, start_date, end_date)
+        await self.backtester.backtest(symbols, start_date, end_date, timeframe)
 
     async def stop_all(self):
         self._running = False

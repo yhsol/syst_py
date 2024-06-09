@@ -34,6 +34,7 @@ class Backtest:
         symbols: Optional[List[str]],
         start_date: Optional[str],
         end_date: Optional[str],
+        timeframe: str = "1h",
     ):
         candidate_symbols = []
 
@@ -47,7 +48,7 @@ class Backtest:
         for symbol in candidate_symbols:
             # 과거 데이터를 가져옵니다.
             historical_data = await self.bithumb.get_candlestick_data(
-                symbol, "KRW", "24h"
+                symbol, "KRW", timeframe
             )
             if historical_data["status"] != "0000":
                 continue  # 데이터가 유효하지 않으면 건너뜁니다.
@@ -139,17 +140,52 @@ class Backtest:
         ):
             print("Sell condition met")
             if symbol in self.trading_bot.holding_coins:
+                buy_price = self.trading_bot.holding_coins[symbol]["buy_price"]
+                profit = (current_price - buy_price) / buy_price * 100  # 수익률 계산
                 self.trading_history.append(
                     {
                         "symbol": symbol,
                         "action": "sell",
                         "price": current_price,
                         "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        "profit": profit,  # 수익률 추가
                     }
                 )
                 del self.trading_bot.holding_coins[symbol]
 
     def save_results_to_excel(self):
         df = pd.DataFrame(self.trading_history)
-        df.to_excel("backtest_results.xlsx", index=False)
+
+        # 수익률 관련 통계 계산
+        profits = df[df["action"] == "sell"]["profit"]
+        final_profit = profits.sum()
+        max_profit = profits.max()
+        min_profit = profits.min()
+        avg_profit = profits.mean()
+        avg_loss = profits[profits < 0].mean()
+
+        # 통계 데이터를 추가합니다.
+        summary = pd.DataFrame(
+            {
+                "Metric": [
+                    "Final Profit",
+                    "Max Profit",
+                    "Min Profit",
+                    "Average Profit",
+                    "Average Loss",
+                ],
+                "Value": [
+                    final_profit,
+                    max_profit,
+                    min_profit,
+                    avg_profit,
+                    avg_loss,
+                ],
+            }
+        )
+
+        with pd.ExcelWriter("backtest_results.xlsx") as writer:
+            df.to_excel(writer, index=False, sheet_name="Trades")
+            summary.to_excel(writer, index=False, sheet_name="Summary")
+
         logger.info("Backtest results saved to backtest_results.xlsx")
