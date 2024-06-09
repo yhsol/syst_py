@@ -16,6 +16,7 @@ pandas-stubs = "*"
 websockets = "*"
 apscheduler = "*"
 aiohttp = "*"
+openpyxl = "*"
 
 [dev-packages]
 

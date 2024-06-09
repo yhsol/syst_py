@@ -8,6 +8,7 @@ from collections import defaultdict
 
 import websockets
 
+from app.services.backtest import Backtest
 from app.services.bithumb_service import BithumbPrivateService, BithumbService
 from app.services.stratege_service import StrategyService
 from app.telegram.telegram_client import send_telegram_message
@@ -65,6 +66,7 @@ class TradingBot:
         self.bithumb = bithumb_service
         self.bithumb_private = bithumb_private_service
         self.strategy = strategy_service
+        self.backtester = Backtest(bithumb_service, strategy_service, self)
 
         self._running = False
         self.websocket_connections: Dict[str, websockets.WebSocketClientProtocol] = {}
@@ -760,6 +762,14 @@ class TradingBot:
                     pass
 
                 self.in_trading_process_coins.remove(symbol)
+
+    async def run_backtest(
+        self,
+        symbols: Optional[List[str]],
+        start_date: Optional[str],
+        end_date: Optional[str],
+    ):
+        await self.backtester.backtest(symbols, start_date, end_date)
 
     async def stop_all(self):
         self._running = False

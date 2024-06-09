@@ -201,3 +201,14 @@ async def clear_log():
         return JSONResponse(
             content={"status": "error", "message": str(e)}, status_code=500
         )
+
+
+@router.get(f"{ROOT}/backtest", dependencies=[Depends(verify_api_key)])
+async def run_backtest(
+    background_tasks: BackgroundTasks,
+    symbols: Optional[List[str]] = Query(None),
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None),
+):
+    background_tasks.add_task(trading_bot.run_backtest, symbols, start_date, end_date)
+    return {"status": "backtest started"}

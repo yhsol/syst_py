@@ -242,7 +242,6 @@ async def generate_short_term_analysis_message():
 
 
 def format_trading_history(trading_history):
-    print("log=> Trading history: ", trading_history)
     try:
         formatted_entries = []
         for symbol, entries in trading_history.items():
@@ -255,7 +254,6 @@ def format_trading_history(trading_history):
                         else f"  - {entry['action'].capitalize()} at {entry['price']} on {entry['exit_time']}"
                     )
                     formatted_entries.append(entry_str)
-        print("log=> Formatted entries: ", formatted_entries)
         return "\n".join(formatted_entries) + "\n\n"
     except Exception as e:
         logger.error("An error occurred while formatting trading history: %s", e)
@@ -263,31 +261,33 @@ def format_trading_history(trading_history):
         return str(trading_history)
 
 
-async def check_entry_condition(symbol, signal, trading_history):
+async def check_entry_condition(symbol, signal, trading_history, is_test=False):
     if ("short_exit" in signal) or ("long_entry" in signal):
-        # 매수 시그널
-        await send_telegram_message(
-            (
-                f"🚀 {symbol} 매수 시그널 발생! 🚀\n\n"
-                f"{format_trading_history(trading_history)}"
-            ),
-            term_type="short-term",
-        )
+        if is_test is False:
+            # 매수 시그널
+            await send_telegram_message(
+                (
+                    f"🚀 {symbol} 매수 시그널 발생! 🚀\n\n"
+                    f"{format_trading_history(trading_history)}"
+                ),
+                term_type="short-term",
+            )
         return True
     return False
 
 
-async def check_exit_condition(symbol, signal, trading_history):
+async def check_exit_condition(symbol, signal, trading_history, is_test=False):
     if ("long_exit" in signal) or ("short_entry" in signal):
-        # 매도 시그널
-        await send_telegram_message(
-            (
-                f"🚀 {symbol} 매도 시그널 발생!\n\n"
-                f"{format_trading_history(trading_history)}"
-                "🚀"
-            ),
-            term_type="short-term",
-        )
+        if is_test is False:
+            # 매도 시그널
+            await send_telegram_message(
+                (
+                    f"🚀 {symbol} 매도 시그널 발생!\n\n"
+                    f"{format_trading_history(trading_history)}"
+                    "🚀"
+                ),
+                term_type="short-term",
+            )
         return True
     return False
 
