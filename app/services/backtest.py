@@ -37,6 +37,10 @@ class Backtest:
         end_date: Optional[str],
         timeframe: str = "1h",
     ):
+        # 초기화
+        self.trading_history = []
+        self.last_actions = {}
+
         candidate_symbols = []
 
         if symbols:
@@ -45,6 +49,11 @@ class Backtest:
             all_coins = await self.bithumb.get_current_price("KRW")
             filtered_by_value = await self.bithumb.filter_coins_by_value(all_coins, 10)
             candidate_symbols = filtered_by_value
+
+        start_datetime = (
+            datetime.strptime(start_date, "%Y-%m-%d") if start_date else None
+        )
+        end_datetime = datetime.strptime(end_date, "%Y-%m-%d") if end_date else None
 
         for symbol in candidate_symbols:
             # 과거 데이터를 가져옵니다.
@@ -58,10 +67,13 @@ class Backtest:
                 timestamp, open_price, high_price, low_price, close_price, volume = (
                     data_point
                 )
-                date = datetime.fromtimestamp(timestamp / 1000).strftime(
-                    "%Y-%m-%d %H:%M:%S"
-                )
+                date = datetime.fromtimestamp(timestamp / 1000)
+                if (start_datetime and date < start_datetime) or (
+                    end_datetime and date > end_datetime
+                ):
+                    continue  # 날짜가 범위를 벗어나면 건너뜁니다
 
+                date_str = date.strftime("%Y-%m-%d %H:%M:%S")
                 close_price = float(close_price)
 
                 # 해당 시점의 시그널을 분석합니다.
@@ -70,7 +82,9 @@ class Backtest:
                 )
 
                 # 매수 및 매도 조건을 체크합니다.
-                await self.check_trading_conditions(symbol, close_price, analysis, date)
+                await self.check_trading_conditions(
+                    symbol, close_price, analysis, date_str
+                )
 
         self.save_results_to_excel()
 
