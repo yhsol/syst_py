@@ -88,7 +88,7 @@ class TradingBot:
         self.candlestick_data: Dict = {}  # 캔들스틱 데이터를 저장할 딕셔너리
         self.available_krw_to_each_trade: float = 10000
         self.profit_target = {"profit": 10, "amount": 0.5}
-        self.trailing_stop_percent = 0.02  # 예: 2% 트레일링 스탑
+        self.trailing_stop_percent = 0.01  # 1% 트레일링 스탑
         self.trailing_stop_amount = float(1)  # 이익 실현 시 매도할 양
         self.current_timeframe = "30m"
         self.last_analysis_time: Dict[str, datetime] = {}
