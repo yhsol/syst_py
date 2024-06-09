@@ -70,7 +70,18 @@ class TradingBot:
 
         self._running = False
         self.websocket_connections: Dict[str, websockets.WebSocketClientProtocol] = {}
-        self.interest_symbols: Set[str] = set()
+        self.interest_symbols: Set[str] = {
+            "STX",
+            "LINK",
+            "PEPE",
+            "FLOKI",
+            "BONK",
+            "ARB",
+            "ARKM",
+            "PYTH",
+            "SHIB",
+            "THETA",
+        }
         self.holding_coins: defaultdict[str, HoldingCoin] = defaultdict(
             lambda: {
                 "units": 0.0,
