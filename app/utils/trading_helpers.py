@@ -249,9 +249,9 @@ def format_trading_history(trading_history):
             for entry in entries:
                 if "action" in entry and "price" in entry:
                     entry_str = (
-                        f"  - {entry['action'].capitalize()} at {entry['price']} on {entry['entry_time']}"
+                        f"  - {entry['action'].capitalize()} at {entry['price']} on {entry['reason']}"
                         if entry["action"] == "buy"
-                        else f"  - {entry['action'].capitalize()} at {entry['price']} on {entry['exit_time']}"
+                        else f"  - {entry['action'].capitalize()} at {entry['price']} on {entry['reason']}"
                     )
                     formatted_entries.append(entry_str)
         return "\n".join(formatted_entries) + "\n\n"
