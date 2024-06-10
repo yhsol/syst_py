@@ -17,6 +17,7 @@ websockets = "*"
 apscheduler = "*"
 aiohttp = "*"
 openpyxl = "*"
+pytz = "*"
 
 [dev-packages]
 
