@@ -139,6 +139,8 @@ class TradingBot:
         return {
             "available_krw_to_each_trade": self.available_krw_to_each_trade,
             "current_timeframe": self.current_timeframe,
+            "timeframe_for_interval": self.timeframe_for_interval,
+            "stop_loss_percent": self.stop_loss_percent,
             "profit_target": self.profit_target,
             "trailing_stop_percent": self.trailing_stop_percent,
             "trailing_stop_amount": self.trailing_stop_amount,
