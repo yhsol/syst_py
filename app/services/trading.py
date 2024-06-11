@@ -195,8 +195,8 @@ class TradingBot:
                 return
 
     async def is_in_uptrend(self, symbol: str) -> bool:
-        if self.current_timeframe in self.timeframes_for_check_uptrend:
-            self.timeframes_for_check_uptrend.remove(self.current_timeframe)
+        # if self.current_timeframe in self.timeframes_for_check_uptrend:
+        #     self.timeframes_for_check_uptrend.remove(self.current_timeframe)
 
         for timeframe in self.timeframes_for_check_uptrend:
             logger.info("Check uptrend for %s with %s", symbol, timeframe)
