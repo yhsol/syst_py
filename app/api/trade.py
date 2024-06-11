@@ -36,14 +36,20 @@ async def runtrade(
     background_tasks: BackgroundTasks,
     symbols: Optional[List[str]] = Query(None),
     timeframe: str = "30m",
+    stoploss_percent: float = 0.02,
 ) -> dict:
     if symbols is not None:
         symbols = [symbol.upper() for symbol in symbols]
 
     print(
-        f"Endpoint runtrade Receive: trade: Symbols: {symbols}, Timeframe: {timeframe}"
+        f"Endpoint runtrade Receive: trade: Symbols: {symbols}, Timeframe: {timeframe}, Stop Loss Percent: {stop_loss_percent}"
     )
-    background_tasks.add_task(trading_bot.run, symbols=symbols, timeframe=timeframe)
+    background_tasks.add_task(
+        trading_bot.run,
+        symbols=symbols,
+        timeframe=timeframe,
+        stop_loss_percent=stoploss_percent,
+    )
     return {"status": "trading started"}
 
 
@@ -163,6 +169,12 @@ async def get_candlestick_data(symbol: str, timeframe: str) -> dict:
 )
 async def set_available_split_sell_count(split_sell_count: int) -> dict:
     response = trading_bot.set_available_split_sell_count(split_sell_count)
+    return response
+
+
+@router.get(f"{ROOT}/set-stop-loss-percent", dependencies=[Depends(verify_api_key)])
+def stop_loss_percent(percent: float = 0.02) -> dict:
+    response = trading_bot.set_stop_loss_percent(percent)
     return response
 
 

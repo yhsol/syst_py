@@ -29,6 +29,7 @@ class Backtest:
         self.last_actions: Dict[str, str] = {}  # 마지막 액션을 저장할 딕셔너리
         self.holding_coins: Dict[str, Dict] = {}
         self.trailing_stop_percent = 0.01
+        self.stop_loss_percent = 0.02
 
     async def backtest(
         self,
@@ -130,7 +131,7 @@ class Backtest:
             holding_coin = self.holding_coins[symbol]
             highest_price = holding_coin["highest_price"]
             trailing_stop_price = highest_price * 0.99
-            stop_loss_price = holding_coin["buy_price"] * 0.98
+            stop_loss_price = holding_coin["buy_price"] * (1 - self.stop_loss_percent)
 
             # 트레일링 스탑 조건
             if current_price <= trailing_stop_price:
@@ -176,7 +177,7 @@ class Backtest:
             self.holding_coins[symbol] = {
                 "units": 1.0,  # 백테스팅에서는 1 단위로 가정합니다.
                 "buy_price": current_price,
-                "stop_loss_price": current_price * 0.98,
+                "stop_loss_price": current_price * (1 - self.stop_loss_percent),
                 "order_id": None,
                 "profit": 0,
                 "reason": "backtest",

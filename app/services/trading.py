@@ -132,6 +132,7 @@ class TradingBot:
         # uptrend 를 판단하기 위한 timeframes
         self.timeframes_for_check_uptrend = ["1h", "6h", "24h"]
         self.available_split_sell_count = 1
+        self.stop_loss_percent = 0.02  # 손절가 2%
 
     def get_status(self):
         return {
@@ -167,6 +168,10 @@ class TradingBot:
     def set_available_split_sell_count(self, count: int):
         self.available_split_sell_count = count
         return {"status": f"Available split sell count set to {count}"}
+
+    def set_stop_loss_percent(self, percent: float):
+        self.stop_loss_percent = percent
+        return {"status": f"Stop loss percent set to {percent*100}%"}
 
     async def set_trailing_stop(self, symbol: str, percent: float):
         self.trailing_stop_percent = percent
@@ -298,7 +303,7 @@ class TradingBot:
     async def add_holding_coin(
         self, symbol: str, units: float, buy_price: float, split_sell_count: int = 0
     ):
-        stop_loss_price = buy_price * 0.98
+        stop_loss_price = buy_price * (1 - self.stop_loss_percent)
         self.holding_coins[symbol] = {
             "units": units,
             "buy_price": buy_price,
@@ -407,7 +412,7 @@ class TradingBot:
                     if contracts:
                         contract = contracts[0]
                         buy_price = float(contract.get("price", 0))
-                        stop_loss_price = buy_price * 0.98
+                        stop_loss_price = buy_price * (1 - self.stop_loss_percent)
 
                         self.holding_coins[symbol] = {
                             "units": available_units,
@@ -786,10 +791,16 @@ class TradingBot:
     async def stop_all(self):
         self._running = False
 
-    async def run(self, symbols: Optional[List[str]] = None, timeframe: str = "1h"):
+    async def run(
+        self,
+        symbols: Optional[List[str]] = None,
+        timeframe: str = "1h",
+        stop_loss_percent: float = 0.02,
+    ):
         self._running = True
         self.set_timeframe(timeframe)
         self.trading_history = {}  # 추후에 database 에 저장하도록 변경해야함.
+        self.stop_loss_percent = stop_loss_percent
 
         while self._running:
             await send_telegram_message(
