@@ -133,6 +133,11 @@ async def set_timeframe(timeframe: str) -> dict:
     return {"status": f"current timeframe is set to {timeframe}"}
 
 
+async def set_timeframe_for_internal(timeframe: str) -> dict:
+    trading_bot.set_timeframe_for_interval(timeframe)
+    return {"status": f"timeframe for interval is set to {timeframe}"}
+
+
 @router.get(f"{ROOT}/set-trailing-stop", dependencies=[Depends(verify_api_key)])
 async def set_trailing_stop(symbol: str, trailing_stop_percent: float) -> dict:
     symbol = symbol.upper()

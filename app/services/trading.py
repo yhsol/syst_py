@@ -115,6 +115,7 @@ class TradingBot:
             "moving_average": 0.1,  # 이동 평균
             "volume_growth_rate": 0.2,  # 거래량 증가율
         }
+        self.timeframe_for_interval = "1h"
         self.timeframe_intervals = {
             "1m": timedelta(minutes=1),
             "5m": timedelta(minutes=5),
@@ -156,6 +157,9 @@ class TradingBot:
 
     def set_timeframe(self, timeframe: str):
         self.current_timeframe = timeframe
+
+    def set_timeframe_for_interval(self, timeframe: str):
+        self.timeframe_for_interval = timeframe
 
     def set_trailing_stop_percent(self, percent: float):
         self.trailing_stop_percent = percent
@@ -801,16 +805,20 @@ class TradingBot:
         stop_loss_percent: float = 0.02,
     ):
         self._running = True
-        self.set_timeframe(timeframe)
         self.trading_history = {}  # 추후에 database 에 저장하도록 변경해야함.
-        self.stop_loss_percent = stop_loss_percent
+        self.set_timeframe(timeframe)
+        if timeframe in ["6h", "24h"]:
+            self.set_timeframe_for_interval("1h")
+        self.set_stop_loss_percent(stop_loss_percent)
 
         while self._running:
             await send_telegram_message(
                 "🚀 Trading bot started by interval.", term_type="short-term"
             )
             await self.analyze_and_trade_by_interval(symbols, timeframe)
-            interval = self.timeframe_intervals.get(timeframe, timedelta(minutes=1))
+            interval = self.timeframe_intervals.get(
+                self.timeframe_for_interval, timedelta(minutes=1)
+            )
             await asyncio.sleep(interval.total_seconds())
 
         logger.info("Trading bot stopped.")
