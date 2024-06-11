@@ -127,12 +127,15 @@ async def sell(symbol: str, amount: float = 1.0, reason: str = "user request") -
     return {"status": f"sell {symbol} success"}
 
 
-@router.get(f"{ROOT}/set-timeframe", dependencies=[Depends(verify_api_key)])
-async def set_timeframe(timeframe: str) -> dict:
-    trading_bot.set_timeframe(timeframe)
-    return {"status": f"current timeframe is set to {timeframe}"}
+@router.get(f"{ROOT}/set-timeframe-for-chart", dependencies=[Depends(verify_api_key)])
+async def set_timeframe_for_chart(timeframe: str) -> dict:
+    trading_bot.set_timeframe_for_chart(timeframe)
+    return {"status": f"timeframe for chart is set to {timeframe}"}
 
 
+@router.get(
+    f"{ROOT}/set-timeframe-for-internal", dependencies=[Depends(verify_api_key)]
+)
 async def set_timeframe_for_internal(timeframe: str) -> dict:
     trading_bot.set_timeframe_for_interval(timeframe)
     return {"status": f"timeframe for interval is set to {timeframe}"}

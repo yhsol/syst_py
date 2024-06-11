@@ -103,7 +103,7 @@ class TradingBot:
         self.profit_target = {"profit": 10, "amount": 0.5}
         self.trailing_stop_percent = 0.01  # 1% 트레일링 스탑
         self.trailing_stop_amount = float(1)  # 이익 실현 시 매도할 양
-        self.current_timeframe = "30m"
+        self.timeframe_for_chart = "30m"
         self.last_analysis_time: Dict[str, datetime] = {}
         self.weights = {
             "volume": 0.2,  # 거래량
@@ -138,7 +138,7 @@ class TradingBot:
     def get_status(self):
         return {
             "available_krw_to_each_trade": self.available_krw_to_each_trade,
-            "current_timeframe": self.current_timeframe,
+            "timeframe_for_chart": self.timeframe_for_chart,
             "timeframe_for_interval": self.timeframe_for_interval,
             "stop_loss_percent": self.stop_loss_percent,
             "profit_target": self.profit_target,
@@ -157,8 +157,8 @@ class TradingBot:
         self.trade_coin_limmit = limmit
         return {"status": f"Trade coin limmit set to {limmit}"}
 
-    def set_timeframe(self, timeframe: str):
-        self.current_timeframe = timeframe
+    def set_timeframe_for_chart(self, timeframe: str):
+        self.timeframe_for_chart = timeframe
 
     def set_timeframe_for_interval(self, timeframe: str):
         self.timeframe_for_interval = timeframe
@@ -201,8 +201,12 @@ class TradingBot:
                 return
 
     async def is_in_uptrend(self, symbol: str) -> bool:
-        # if self.current_timeframe in self.timeframes_for_check_uptrend:
-        #     self.timeframes_for_check_uptrend.remove(self.current_timeframe)
+        # 아래는 로컬에서 확인 후에 추가
+        # timeframes_for_check_uptrend = [
+        #     timeframe
+        #     for timeframe in self.timeframes_for_check_uptrend
+        #     if timeframe != self.timeframe_for_chart
+        # ]
 
         for timeframe in self.timeframes_for_check_uptrend:
             logger.info("Check uptrend for %s with %s", symbol, timeframe)
@@ -711,7 +715,7 @@ class TradingBot:
     async def analyze_and_trade_by_interval(
         self, symbols: Optional[List[str]] = None, timeframe: str = "1h"
     ):
-        self.set_timeframe(timeframe)
+        self.set_timeframe_for_chart(timeframe)
 
         selected_coins = await self.select_coin()
         selected_coins_set = set(selected_coins)
@@ -744,7 +748,7 @@ class TradingBot:
             analysis = await self.strategy.analyze_currency_by_turtle(
                 order_currency=symbol,
                 payment_currency="KRW",
-                chart_intervals=self.current_timeframe,
+                chart_intervals=self.timeframe_for_chart,
             )
 
             # 매수는 latest signal 을 기준으로, 매도는 last signal 을 기준으로
@@ -808,7 +812,7 @@ class TradingBot:
     ):
         self._running = True
         self.trading_history = {}  # 추후에 database 에 저장하도록 변경해야함.
-        self.set_timeframe(timeframe)
+        self.set_timeframe_for_chart(timeframe)
         if timeframe in ["6h", "24h"]:
             self.set_timeframe_for_interval("1h")
         self.set_stop_loss_percent(stop_loss_percent)
@@ -817,7 +821,7 @@ class TradingBot:
             await send_telegram_message(
                 "🚀 Trading bot started by interval.", term_type="short-term"
             )
-            await self.analyze_and_trade_by_interval(symbols, timeframe)
+            await self.analyze_and_trade_by_interval(symbols, self.timeframe_for_chart)
             interval = self.timeframe_intervals.get(
                 self.timeframe_for_interval, timedelta(minutes=1)
             )
