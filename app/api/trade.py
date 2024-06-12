@@ -189,8 +189,9 @@ def stop_loss_percent(percent: float = 0.02) -> dict:
 @router.get(f"{ROOT}/run-mm", dependencies=[Depends(verify_api_key)])
 async def run_market_monitor(
     background_tasks: BackgroundTasks,
+    interval: Optional[int] = None,
 ):
-    background_tasks.add_task(market_monitor.run)
+    background_tasks.add_task(market_monitor.run, interval)
     return {"status": 200, "message": "market monitor started"}
 
 
@@ -200,12 +201,18 @@ async def stop_market_monitor() -> dict:
     return {"status": 200, "message": "market monitor stopped"}
 
 
+@router.get(f"{ROOT}/set-monitoring-interval", dependencies=[Depends(verify_api_key)])
 def set_monitoring_interval(interval: int) -> dict:
     market_monitor.set_monitoring_interval(interval=5)
     return {
         "status": 200,
         "message": f"monitoring interval set to {interval} seconds",
     }
+
+
+@router.get(f"{ROOT}/get-monitoring-status", dependencies=[Depends(verify_api_key)])
+def get_monitoring_status():
+    return market_monitor.get_status()
 
 
 @router.get(f"{ROOT}/download-log", dependencies=[Depends(verify_api_key)])

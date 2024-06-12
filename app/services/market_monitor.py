@@ -23,6 +23,15 @@ class MarketMonitor:
         self.last_checked_time: Dict[str, float] = {}
         self.monitoring_interval = 5
 
+    def get_status(self):
+        return {
+            "price_change_threshold": self.price_change_threshold,
+            "volume_change_threshold": self.volume_change_threshold,
+            "monitoring_interval": self.monitoring_interval,
+            "last_checked_time": self.last_checked_time,
+            "current_connections": list(self.websocket_connections.keys()),
+        }
+
     def set_monitoring_interval(self, interval: int):
         self.monitoring_interval = interval
 
@@ -129,7 +138,9 @@ class MarketMonitor:
             ]
         )
 
-    async def run(self):
+    async def run(self, interval: Optional[int] = None):
+        if interval:
+            self.set_monitoring_interval(interval)
         all_coins = await self.bithumb.get_current_price("KRW")
         filtered_by_value = await self.bithumb.filter_coins_by_value(all_coins, 100)
 
