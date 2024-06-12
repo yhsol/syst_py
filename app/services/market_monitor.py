@@ -64,8 +64,15 @@ class MarketMonitor:
         prev_price = self.previous_prices.get(symbol, close_price)
         prev_volume = self.previous_volumes.get(symbol, volume)
 
-        price_change = abs((close_price - prev_price) / prev_price)
-        volume_change = volume / prev_volume
+        if prev_price == 0:
+            prev_price = close_price  # 이전 가격이 0이면 현재 가격으로 설정
+        if prev_volume == 0:
+            prev_volume = volume  # 이전 볼륨이 0이면 현재 볼륨으로 설정
+
+        price_change = (
+            abs((close_price - prev_price) / prev_price) if prev_price != 0 else 0
+        )
+        volume_change = (volume / prev_volume) if prev_volume != 0 else 0
 
         self.previous_prices[symbol] = close_price
         self.previous_volumes[symbol] = volume
