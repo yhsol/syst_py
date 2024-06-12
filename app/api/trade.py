@@ -200,6 +200,14 @@ async def stop_market_monitor() -> dict:
     return {"status": 200, "message": "market monitor stopped"}
 
 
+def set_monitoring_interval(interval: int) -> dict:
+    market_monitor.set_monitoring_interval(interval=5)
+    return {
+        "status": 200,
+        "message": f"monitoring interval set to {interval} seconds",
+    }
+
+
 @router.get(f"{ROOT}/download-log", dependencies=[Depends(verify_api_key)])
 async def download_log():
     log_file_path = "trading_bot.log"

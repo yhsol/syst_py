@@ -20,6 +20,11 @@ class MarketMonitor:
         self.previous_prices: Dict[str, float] = {}
         self.previous_volumes: Dict[str, float] = {}
         self.websocket_connections: Dict[str, websockets.WebSocketClientProtocol] = {}
+        self.last_checked_time: Dict[str, float] = {}
+        self.monitoring_interval = 5
+
+    def set_monitoring_interval(self, interval: int):
+        self.monitoring_interval = interval
 
     async def monitor_market(self, symbol: str):
         async with websockets.connect("wss://pubwss.bithumb.com/pub/ws") as websocket:
@@ -52,15 +57,25 @@ class MarketMonitor:
             volume = float(data["content"]["volume"])
             print(f"Processing data for {symbol}")
 
-            if self.detect_sudden_change(symbol, close_price, volume):
-                print(f"Detected sudden change in {symbol}")
-                self.send_alert(symbol, close_price, volume)
-                return True
-        return False
+            current_time = asyncio.get_event_loop().time()
+            last_checked = self.last_checked_time.get(symbol, 0)
+
+            # 5분(300초)마다 detect_sudden_change 실행
+            if current_time - last_checked >= self.monitoring_interval * 60:
+                if self.detect_sudden_change(symbol, close_price, volume):
+                    print(f"Detected sudden change in {symbol}")
+                    self.send_alert(symbol, close_price, volume)
+                self.last_checked_time[symbol] = current_time
 
     def detect_sudden_change(
         self, symbol: str, close_price: float, volume: float
     ) -> bool:
+        logger.info(
+            "detect_sudden_change: Symbol %s. Price: %s, Volume: %s",
+            symbol,
+            close_price,
+            volume,
+        )
         prev_price = self.previous_prices.get(symbol, close_price)
         prev_volume = self.previous_volumes.get(symbol, volume)
 
