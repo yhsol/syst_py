@@ -29,27 +29,81 @@ class StrategyService:
 
         return df
 
-    def compute_signals(self, df, entry_length=20, exit_length=10):
+    def compute_moving_averages(self, df, short_window=50, long_window=200):
+        df["short_ma"] = df["close"].rolling(window=short_window).mean()
+        df["long_ma"] = df["close"].rolling(window=long_window).mean()
+        return df
+
+    def compute_vwma(self, df, length=20):
+        df["typical_price"] = (df["close"] + df["high"] + df["low"]) / 3
+        df["vwap"] = (df["typical_price"] * df["volume"]).rolling(
+            window=length
+        ).sum() / df["volume"].rolling(window=length).sum()
+        return df
+
+    def compute_atr(self, df, window=14):
+        df["high-low"] = df["high"] - df["low"]
+        df["high-close"] = (df["high"] - df["close"].shift()).abs()
+        df["low-close"] = (df["low"] - df["close"].shift()).abs()
+        df["true_range"] = df[["high-low", "high-close", "low-close"]].max(axis=1)
+        df["atr"] = df["true_range"].rolling(window=window).mean()
+        return df
+
+    def compute_signals(
+        self,
+        df,
+        entry_length=20,
+        exit_length=10,
+        short_window=50,
+        long_window=200,
+        atr_window=14,
+        vwma_length=20,
+    ):
         try:
-            # Ensure the 'high' and 'low' columns are of float type
+            # 기본 터틀 트레이딩 시그널
             df["high"] = pd.to_numeric(df["high"], errors="coerce")
             df["low"] = pd.to_numeric(df["low"], errors="coerce")
+            df["close"] = pd.to_numeric(df["close"], errors="coerce")
+            df["volume"] = pd.to_numeric(df["volume"], errors="coerce")
 
-            # Calculate rolling max and min
             df["upper"] = df["high"].rolling(window=entry_length).max()
             df["lower"] = df["low"].rolling(window=entry_length).min()
             df["exit_upper"] = df["high"].rolling(window=exit_length).max()
             df["exit_lower"] = df["low"].rolling(window=exit_length).min()
-
-            # Compute entry and exit signals
             df["long_entry"] = df["high"] > df["upper"].shift(1)
             df["short_entry"] = df["low"] < df["lower"].shift(1)
             df["long_exit"] = df["low"] < df["exit_lower"].shift(1)
             df["short_exit"] = df["high"] > df["exit_upper"].shift(1)
 
+            # 이동평균선
+            df["short_ma"] = df["close"].rolling(window=short_window).mean()
+            df["long_ma"] = df["close"].rolling(window=long_window).mean()
+            df["ma_condition"] = df["short_ma"] > df["long_ma"]
+
+            # VWMA
+            df["typical_price"] = (df["close"] + df["high"] + df["low"]) / 3
+            df["vwap"] = (df["typical_price"] * df["volume"]).rolling(
+                window=vwma_length
+            ).sum() / df["volume"].rolling(window=vwma_length).sum()
+            df["vwma_condition"] = df["close"] > df["vwap"]
+
+            # ATR
+            df["high-low"] = df["high"] - df["low"]
+            df["high-close"] = (df["high"] - df["close"].shift()).abs()
+            df["low-close"] = (df["low"] - df["close"].shift()).abs()
+            df["true_range"] = df[["high-low", "high-close", "low-close"]].max(axis=1)
+            df["atr"] = df["true_range"].rolling(window=atr_window).mean()
+
+            # 최종 시그널
+            df["long_entry"] = (
+                df["long_entry"] & df["ma_condition"] & df["vwma_condition"]
+            )
+            df["long_exit"] = df["long_exit"]
+
             return df
         except Exception as e:
             print(f"Error in compute_signals: {e}")
+            return df
 
     def determine_signal_status(self, filtered_signals, signal_columns) -> dict:
         if filtered_signals.empty:
@@ -100,10 +154,16 @@ class StrategyService:
             return {"status": "error", "message": "Data retrieval failed"}
 
         df = self.process_candles(data)
-        signals = self.compute_signals(df)
-        signal_columns = ["long_entry", "short_entry", "long_exit", "short_exit"]
+        df = self.compute_signals(df)
+        signal_columns = ["long_entry", "long_exit", "short_entry", "short_exit"]
 
-        filtered_signals = signals[["timestamp"] + signal_columns]
+        if not set(signal_columns).issubset(df.columns):
+            return {
+                "status": "error",
+                "message": f"Missing expected signal columns in DataFrame",
+            }
+
+        filtered_signals = df[["timestamp"] + signal_columns]
         filtered_signals = filtered_signals.sort_values(by="timestamp", ascending=False)
 
         signal_status = self.determine_signal_status(filtered_signals, signal_columns)

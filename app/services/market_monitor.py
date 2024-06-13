@@ -71,20 +71,15 @@ class MarketMonitor:
 
             # 5분(300초)마다 detect_sudden_change 실행
             if current_time - last_checked >= self.monitoring_interval * 60:
+                logger.info("Processing data for %s.", symbol)
                 if self.detect_sudden_change(symbol, close_price, volume):
-                    print(f"Detected sudden change in {symbol}")
+                    logger.info("Sudden change detected for %s.", symbol)
                     await self.send_alert(symbol, close_price, volume)
                 self.last_checked_time[symbol] = current_time
 
     def detect_sudden_change(
         self, symbol: str, close_price: float, volume: float
     ) -> bool:
-        logger.info(
-            "detect_sudden_change: Symbol %s. Price: %s, Volume: %s",
-            symbol,
-            close_price,
-            volume,
-        )
         prev_price = self.previous_prices.get(symbol, close_price)
         prev_volume = self.previous_volumes.get(symbol, volume)
 
