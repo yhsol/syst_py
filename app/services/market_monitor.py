@@ -51,7 +51,7 @@ class MarketMonitor:
                 try:
                     message = await websocket.recv()
                     data = json.loads(message)
-                    self.process_market_data(data)
+                    await self.process_market_data(data)
                 except websockets.ConnectionClosed as e:
                     logger.error("Connection closed: %s", e)
                     break
@@ -59,7 +59,7 @@ class MarketMonitor:
                     logger.error("An error occurred: %s", e)
                     await asyncio.sleep(1)  # 재연결 시도를 위해 잠시 대기
 
-    def process_market_data(self, data):
+    async def process_market_data(self, data):
         if "content" in data:
             symbol = data["content"]["symbol"]
             close_price = float(data["content"]["closePrice"])
@@ -73,7 +73,7 @@ class MarketMonitor:
             if current_time - last_checked >= self.monitoring_interval * 60:
                 if self.detect_sudden_change(symbol, close_price, volume):
                     print(f"Detected sudden change in {symbol}")
-                    self.send_alert(symbol, close_price, volume)
+                    await self.send_alert(symbol, close_price, volume)
                 self.last_checked_time[symbol] = current_time
 
     def detect_sudden_change(
@@ -106,7 +106,7 @@ class MarketMonitor:
             and volume_change >= self.volume_change_threshold
         )
 
-    def send_alert(self, symbol: str, close_price: float, volume: float):
+    async def send_alert(self, symbol: str, close_price: float, volume: float):
         logger.info(
             "Alert! %s has surged. Price: %s, Volume: %s", symbol, close_price, volume
         )
@@ -115,11 +115,9 @@ class MarketMonitor:
         )
         # 여기서 매수
         # self.trading_bot.buy(symbol, "sudden surge")
-        asyncio.create_task(
-            send_telegram_message(
-                f"🚨 Alert! {symbol} has surged. 🚨\n\n💰 Price: {close_price}\n📈 Volume: {volume}",
-                "short-term",
-            )
+        await send_telegram_message(
+            f"🚨 Alert! {symbol} has surged. 🚨\n\n💰 Price: {close_price}\n📈 Volume: {volume}",
+            "short-term",
         )
 
     async def disconnect_to_websocket(self, symbol):

@@ -815,6 +815,8 @@ class TradingBot:
         self.set_timeframe_for_chart(timeframe)
         if timeframe in ["6h", "24h"]:
             self.set_timeframe_for_interval("1h")
+        else:
+            self.set_timeframe_for_interval(timeframe)
         self.set_stop_loss_percent(stop_loss_percent)
 
         while self._running:
