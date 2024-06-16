@@ -218,3 +218,21 @@ class StrategyService:
         )
 
         return df[["timestamp", "VWMA"]]
+
+    async def get_atr(self, symbol: str, atr_window: int = 14):
+        candlestick_data = await self.bithumb_service.get_candlestick_data(
+            symbol, "KRW", "1d"
+        )
+        if candlestick_data["status"] != "0000":
+            return 0  # 데이터가 유효하지 않은 경우 0 반환
+
+        df = pd.DataFrame(
+            candlestick_data["data"],
+            columns=["timestamp", "open", "high", "low", "close", "volume"],
+        )
+        df["high-low"] = df["high"] - df["low"]
+        df["high-close"] = (df["high"] - df["close"].shift()).abs()
+        df["low-close"] = (df["low"] - df["close"].shift()).abs()
+        df["true_range"] = df[["high-low", "high-close", "low-close"]].max(axis=1)
+        atr = df["true_range"].rolling(window=atr_window).mean().iloc[-1]
+        return atr

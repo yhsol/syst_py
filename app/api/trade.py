@@ -186,6 +186,18 @@ def stop_loss_percent(percent: float = 0.02) -> dict:
     return response
 
 
+@router.get(f"{ROOT}/set-atr-for-stop-loss", dependencies=[Depends(verify_api_key)])
+def set_atr_for_stop_loss(atr: float = 1.5) -> dict:
+    response = trading_bot.set_atr_for_stop_loss(atr)
+    return response
+
+
+@router.get(f"{ROOT}/set-atr-for-profit-target", dependencies=[Depends(verify_api_key)])
+def set_atr_for_profit_target(atr: float = 3) -> dict:
+    response = trading_bot.set_atr_for_profit_target(atr)
+    return response
+
+
 @router.get(f"{ROOT}/run-mm", dependencies=[Depends(verify_api_key)])
 async def run_market_monitor(
     background_tasks: BackgroundTasks,
