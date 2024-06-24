@@ -100,7 +100,7 @@ class TradingBot:
         self.trading_history: Dict = {}
         self.candlestick_data: Dict = {}  # 캔들스틱 데이터를 저장할 딕셔너리
         self.available_krw_to_each_trade: float = 10000
-        self.profit_target = {"profit": 10, "amount": 0.5}
+        self.profit_target = {"profit": 5, "amount": 1.0}
         self.trailing_stop_percent = 0.01  # 1% 트레일링 스탑
         self.trailing_stop_amount = float(1)  # 이익 실현 시 매도할 양
         self.timeframe_for_chart = "30m"
@@ -435,10 +435,7 @@ class TradingBot:
                     if contracts:
                         contract = contracts[0]
                         buy_price = float(contract.get("price", 0))
-                        atr = await self.strategy.get_atr(symbol)  # ATR 값 계산
-                        stop_loss_price = buy_price - (
-                            self.atr_for_stop_loss * atr
-                        )  # ATR을 활용한 손절매 가격 설정
+                        stop_loss_price = buy_price * (1 - self.stop_loss_percent)
 
                         self.holding_coins[symbol] = {
                             "units": available_units,
@@ -646,9 +643,9 @@ class TradingBot:
         is_stop_loss_condition_met = await check_stop_loss_condition(
             symbol, current_price, self.holding_coins
         )
-        # is_profit_target_condition_met = profit_percentage > self.profit_target.get(
-        #     "profit", 5
-        # )
+        is_profit_target_condition_met = profit_percentage > self.profit_target.get(
+            "profit", 5
+        )
 
         if is_trailing_stop_condition_met:
             if symbol in self.in_trading_process_coins:
@@ -697,26 +694,25 @@ class TradingBot:
 
             return
 
-        # ATR 기반 이익 실현
-        atr = await self.strategy.get_atr(symbol)
-        buy_price = self.holding_coins[symbol]["buy_price"]
-        target_profit_price = buy_price + (
-            self.atr_for_profit_target * atr
-        )  # 3ATR 기준 이익 실현 가격
-
-        if current_price >= target_profit_price:
+        # 이익률에 따른 매도
+        # profit percentage 를 계속해서 history 쌓듯이 쌓다가, 최고치보다 일정 수준 떨어졌을 때도 매도하는거 추가해야겠다.
+        if is_profit_target_condition_met:
             if symbol in self.in_trading_process_coins:
                 return  # 이미 매도 진행 중인 경우 추가 매도하지 않음
 
             self.in_trading_process_coins.append(symbol)
 
-            sell_result = await self.sell(symbol, reason="ATR-based profit target met")
+            sell_result = await self.sell(
+                symbol,
+                amount=self.profit_target.get("amount", self.profit_target["amount"]),
+                reason=Reason["profitTarget"],
+            )
             if sell_result and sell_result["status"] == "0000":
                 self.trading_history.setdefault(symbol, []).append(
                     {
                         "action": "sell",
-                        "reason": "ATR-based profit target met",
-                        "exit_signal": "reach_ATR_profit",
+                        "reason": "profitTargetConditionMet",
+                        "exit_signal": "reach_profit",
                         "price": current_price,
                         "exit_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     }
