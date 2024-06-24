@@ -89,7 +89,7 @@ def schedule_run_mm():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     try:
-        schedule_run_mm()
+        # schedule_run_mm()
         yield
     finally:
         await stop_mm()

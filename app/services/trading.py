@@ -70,7 +70,7 @@ class TradingBot:
 
         self._running = False
         self.websocket_connections: Dict[str, websockets.WebSocketClientProtocol] = {}
-        self.interest_symbols: Set[str] = {
+        self.interest_symbols: Set[str] = {  # 이 리스트도 조정을 해야할듯.
             "STX",
             "LINK",
             "PEPE",
@@ -98,10 +98,12 @@ class TradingBot:
         self.in_trading_process_coins: List = []
         self.in_analysis_process_coins: List = []
         self.trading_history: Dict = {}
-        self.candlestick_data: Dict = {}  # 캔들스틱 데이터를 저장할 딕셔너리
-        self.available_krw_to_each_trade: float = 10000
+        self.candlestick_data: Dict = {}
+        self.available_krw_to_each_trade: float = (
+            10000  # 이 금액의 리밋을 푸는건.. 상승장이랄까, 장이 좀 풀린 상황에서 하는게 좋을 듯.
+        )
         self.profit_target = {"profit": 5, "amount": 1.0}
-        self.trailing_stop_percent = 0.01  # 1% 트레일링 스탑
+        self.trailing_stop_percent = 0.01  # 1% 트레일링 스탑 # 상승장이 오면 이 트레일링 스탑도 좀 더 여유를 둬야할 듯.
         self.trailing_stop_amount = float(1)  # 이익 실현 시 매도할 양
         self.timeframe_for_chart = "30m"
         self.last_analysis_time: Dict[str, datetime] = {}
@@ -114,6 +116,7 @@ class TradingBot:
             "previous_day_price_change": 0.2,  # 전일 가격 변화
             "moving_average": 0.1,  # 이동 평균
             "volume_growth_rate": 0.2,  # 거래량 증가율
+            # 신고가 조건을 넣어야할듯. 일정 기간동안 중에 최고가를 찍었을 때 높은 점수를 줘야할듯.
         }
         self.timeframe_for_interval = "1h"
         self.timeframe_intervals = {
@@ -638,7 +641,7 @@ class TradingBot:
         trailing_stop_price = self.holding_coins[symbol]["trailing_stop_price"] or 0
         is_trailing_stop_condition_met = (
             current_price <= trailing_stop_price
-            and profit_percentage > 1  # 이익이 1% 미만이라면 매도하지 않고 기다림.
+            and profit_percentage > 0  # 이익이 0% 미만이라면 매도하지 않고 기다림.
         )
         is_stop_loss_condition_met = await check_stop_loss_condition(
             symbol, current_price, self.holding_coins
