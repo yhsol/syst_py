@@ -220,7 +220,7 @@ class TradingBot:
 
         for timeframe in self.timeframes_for_check_uptrend:
             logger.info("Check uptrend for %s with %s", symbol, timeframe)
-            analysis = await self.strategy.analyze_currency_by_turtle(
+            analysis = await self.strategy.analyze_currency_by_channel_breakout(
                 order_currency=symbol,
                 payment_currency="KRW",
                 chart_intervals=timeframe,
@@ -759,7 +759,7 @@ class TradingBot:
         )
 
         for symbol in selected_coins_set:
-            analysis = await self.strategy.analyze_currency_by_turtle(
+            analysis = await self.strategy.analyze_currency_by_channel_breakout(
                 order_currency=symbol,
                 payment_currency="KRW",
                 chart_intervals=self.timeframe_for_chart,

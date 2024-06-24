@@ -43,6 +43,14 @@ async def get_turtle_entry_signals(interval: str = "1h"):
     return long_entry_coins
 
 
+@router.get(f"{ROOT}/breakout", dependencies=[Depends(verify_api_key)])
+async def get_breakout_signals(ticker: str, interval: str = "1h"):
+    result = await strategy_service.analyze_currency_by_channel_breakout(
+        ticker.upper(), chart_intervals=interval
+    )
+    return result
+
+
 @router.get(f"{ROOT}/info", dependencies=[Depends(verify_api_key)])
 async def get_info():
     result = await bithumb_private_service.get_account_info("STX")

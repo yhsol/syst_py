@@ -105,6 +105,47 @@ class StrategyService:
             print(f"Error in compute_signals: {e}")
             return df
 
+    def compute_channel_breakout_signals(self, df, length=5):
+        df["upBound"] = df["high"].rolling(window=length).max()
+        df["downBound"] = df["low"].rolling(window=length).min()
+        df["long_entry"] = df["close"] > df["upBound"].shift(1)
+        df["short_entry"] = df["close"] < df["downBound"].shift(1)
+        return df
+
+    async def analyze_currency_by_channel_breakout(
+        self, order_currency, payment_currency="KRW", chart_intervals="1h", length=5
+    ):
+        data = await self.bithumb_service.get_candlestick_data(
+            order_currency, payment_currency, chart_intervals
+        )
+
+        if data["status"] != "0000":
+            return {"status": "error", "message": "Data retrieval failed"}
+
+        df = self.process_candles(data)
+        df = self.compute_channel_breakout_signals(df, length)
+        signal_columns = ["long_entry", "short_entry"]
+
+        if not set(signal_columns).issubset(df.columns):
+            return {
+                "status": "error",
+                "message": f"Missing expected signal columns in DataFrame",
+            }
+
+        filtered_signals = df[["timestamp"] + signal_columns]
+        filtered_signals = filtered_signals.sort_values(by="timestamp", ascending=False)
+
+        signal_status = self.determine_signal_status(filtered_signals, signal_columns)
+
+        return {
+            "ticker": order_currency,
+            "status": "success",
+            "type_latest_signal": signal_status["latest"],
+            "type_last_true_signal": signal_status["last_true"],
+            "type_last_true_timestamp": signal_status["last_true_timestamp"],
+            "data": filtered_signals.head(20).to_dict(orient="records"),
+        }
+
     def determine_signal_status(self, filtered_signals, signal_columns) -> dict:
         if filtered_signals.empty:
             return {
