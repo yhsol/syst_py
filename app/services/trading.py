@@ -71,16 +71,21 @@ class TradingBot:
         self._running = False
         self.websocket_connections: Dict[str, websockets.WebSocketClientProtocol] = {}
         self.interest_symbols: Set[str] = {  # 이 리스트도 조정을 해야할듯.
+            "FLOKI",
+            "PEPE",
             "STX",
             "LINK",
-            "PEPE",
-            "FLOKI",
             "BONK",
             "ARB",
             "ARKM",
             "PYTH",
             "SHIB",
             "THETA",
+            "AVAX",
+            "ONG",
+            "INJ",
+            "RNDR",
+            "ONDO",
         }
         self.holding_coins: defaultdict[str, HoldingCoin] = defaultdict(
             lambda: {
@@ -103,7 +108,7 @@ class TradingBot:
             10000  # 이 금액의 리밋을 푸는건.. 상승장이랄까, 장이 좀 풀린 상황에서 하는게 좋을 듯.
         )
         self.profit_target = {"profit": 5, "amount": 1.0}
-        self.trailing_stop_percent = 0.01  # 1% 트레일링 스탑 # 상승장이 오면 이 트레일링 스탑도 좀 더 여유를 둬야할 듯.
+        self.trailing_stop_percent = 0.02  # 1% 트레일링 스탑 # 상승장이 오면 이 트레일링 스탑도 좀 더 여유를 둬야할 듯.
         self.trailing_stop_amount = float(1)  # 이익 실현 시 매도할 양
         self.timeframe_for_chart = "30m"
         self.last_analysis_time: Dict[str, datetime] = {}
@@ -268,6 +273,9 @@ class TradingBot:
         # VWMA와 현재 가격 비교
         above_vwma = closing_price > vwma_value
 
+        if not above_vwma:
+            return 0
+
         # ATR 계산
         atr = await calculate_atr(candlestick_data["data"])
 
@@ -308,7 +316,7 @@ class TradingBot:
             candidate_symbols = symbols
         else:
             all_coins = await self.bithumb.get_current_price("KRW")
-            filtered_by_value = await self.bithumb.filter_coins_by_value(all_coins, 100)
+            filtered_by_value = await self.bithumb.filter_coins_by_value(all_coins, 50)
             candidate_symbols = filtered_by_value
 
         available_and_uptrend_symbols = [
@@ -641,7 +649,7 @@ class TradingBot:
         trailing_stop_price = self.holding_coins[symbol]["trailing_stop_price"] or 0
         is_trailing_stop_condition_met = (
             current_price <= trailing_stop_price
-            and profit_percentage > 0  # 이익이 0% 미만이라면 매도하지 않고 기다림.
+            and profit_percentage > 1  # 이익이 1% 미만이라면 매도하지 않고 기다림.
         )
         is_stop_loss_condition_met = await check_stop_loss_condition(
             symbol, current_price, self.holding_coins
@@ -758,6 +766,16 @@ class TradingBot:
         )
 
         for symbol in selected_coins_set:
+            # 여기서, analyze_currency_by_channel_breakout 와 같은 전략들을 포함해서,
+            # 여러 전략을 조합할 수 있는 함수를 만들어서,
+            # 그 안에서 채널 돌파도 확인하고, 거래량도 확인하고 등등을 처리할 수 있도록 하면 좋을듯.
+            # 그러자면, 캔들 데이터를 넘겨받아서 처리하도록 해야할 듯.
+            # 지금처럼 심볼을 받아서 이 전략 분석 안에서 캔들을 조회하게 되면 로직을 분리하기 어려움.
+            # 근데 생각해보면, 거래량을 기준으로 소팅을 먼저 한거여서, 자연스럽게 거래량이 큰 거를 먼저 매수하게 될 텐데..
+            # 좀 더 구체적이고 확실한 전략이 필요하단 말이오~~
+            # calculate_score 를 좀 더 고도화할 필요가 있다.
+            # 거래량을 기준으로 해서 문제인가? 거래량이 큰 애들이 대체로 힘을 못쓰고 있으니까..
+            # 쉽지 않구만.. 시장이 풀릴 때 까지는 어쩔 수 없는건가 싶기도 하고..
             analysis = await self.strategy.analyze_currency_by_channel_breakout(
                 order_currency=symbol,
                 payment_currency="KRW",
@@ -846,4 +864,13 @@ class TradingBot:
         await send_telegram_message("⛔️ Trading bot stopped.", term_type="short-term")
 
 
-# trading history 에 best profit 을 추가해서, best profit 이후에 일정 수준 떨어지면 일정 물량 매도하는 로직 추가.
+# 조금 더 확실한 신호에 매수를 진행해야할 것 같음. 매수 후 상승 우위의 확률이 어느 정도 이상을 유지되어야 시스템을 신뢰할 수 있을 듯.
+# 이거면 확실하다, 신뢰할 수 있다 하는 조건을 만들어두고, 그 가정에 깨지면 손절하는 것으로.
+# 지금 사용하고 있는 터틀과 채널 돌파도 물론 좋은 시그널이지만, 발생 빈도를 조금 더 정교화할 필요가 있음. 그 시그널 중에서도 옥석을 가려낼 필요가 있음.
+# 거래량? 거래량 폭증? 이평선? 거래량 가중 이평?
+
+# 터틀의 이익 트레이딩 청산 전략
+# 이익 트레이딩의 청산은 시스템 1의 경우 매수 포지션은 10일 저가, 매도 포지션은 10일 고가에서 이루어진다.
+# 가격이 10일 도파 포지션에 불리한 방향으로 움직일 때는 해당 포지션을 구성하고 있는 모든 단위를 청산한다.
+# => 이 시스템을 도입하려면, 포지션을 가지고 있는 동안의 최저가를 계속해서 업데이트 해야할 듯. 10일 단위에 맞추고, 10일 동안의 최저가보다 오늘의 가격이 낮다면, 청산하는 방식으로.
+# => 손절까지 가지 않더라도 의미있는 이익 실현 방법이 될 수 있을 것 같기도 하고.
