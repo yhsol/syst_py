@@ -588,40 +588,6 @@ class TradingBot:
             logger.error("Traceback: %s", traceback.format_exc())
             return {"status": "error", "message": str(e)}
 
-    # async def connect_to_websocket(
-    #     self,
-    #     symbol: str,
-    # ):
-    #     async with websockets.connect(
-    #         "wss://pubwss.bithumb.com/pub/ws", ping_interval=20, ping_timeout=20
-    #     ) as websocket:
-    #         self.websocket_connections[symbol] = websocket
-    #         subscribe_message = json.dumps(
-    #             {
-    #                 "type": "ticker",
-    #                 "symbols": [f"{symbol.upper()}_KRW"],
-    #                 "tickTypes": ["1H"],  # ["30M", "1H", "12H", "24H", "MID"],
-    #             }
-    #         )
-    #         await websocket.send(subscribe_message)
-
-    #         while symbol in self.websocket_connections:
-    #             try:
-    #                 message = await websocket.recv()
-    #                 data = json.loads(message)
-    #                 if "content" in data:
-    #                     current_price = float(data["content"]["closePrice"])
-    #                     print(f"Current price for {symbol}: {current_price}")
-    #                     await self.analyze_and_trade_by_immediate(symbol, current_price)
-    #             except websockets.ConnectionClosed as e:
-    #                 logger.error("WebSocket connection closed: %s", e)
-    #                 logger.error("Traceback: %s", traceback.format_exc())
-    #                 break
-    #             except Exception as e:
-    #                 logger.error("An error occurred: %s", e)
-    #                 logger.error("Traceback: %s", traceback.format_exc())
-    #             await asyncio.sleep(1)
-
     async def connect_to_websocket(self, symbol: str):
         while True:  # 무한 루프로 재연결 시도
             try:
