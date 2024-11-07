@@ -12,6 +12,7 @@ from pytz import timezone
 
 from app.api import coin_analysis, signal, trade
 from app.dependencies.auth import verify_api_key
+from app.routers import webhook  # webhook 라우터 import
 
 load_dotenv()
 
@@ -109,6 +110,7 @@ app.add_middleware(
 app.include_router(coin_analysis.router, dependencies=[Depends(verify_api_key)])
 app.include_router(signal.router, dependencies=[Depends(verify_api_key)])
 app.include_router(trade.router, dependencies=[Depends(verify_api_key)])
+app.include_router(webhook.router)  # webhook 라우터 등록
 
 
 @app.get("/")
