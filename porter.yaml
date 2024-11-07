@@ -1,0 +1,10 @@
+services:
+  - name: web
+    type: web
+    env:
+      - name: PYTHON_VERSION
+        value: "3.11"
+    buildCommand: |
+      pip install pipenv
+      pipenv install --system --deploy
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT 
