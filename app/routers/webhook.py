@@ -46,7 +46,7 @@ async def tradingview_webhook(request: Request, test_mode: bool = Query(default=
         )
         
         # 심볼 변환 (거래소별 심볼 포맷에 맞게)
-        symbol = alert.symbol.upper()
+        symbol = alert.symbol.upper().replace('KRW', '')
         
         if alert.action == "buy":
             # 수량이 0이면 최대 매수 가능 수량 계산
